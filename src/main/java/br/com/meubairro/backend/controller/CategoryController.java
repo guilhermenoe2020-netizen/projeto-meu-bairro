@@ -11,34 +11,33 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import br.com.meubairro.backend.entity.Category;
-import br.com.meubairro.backend.repository.CategoryRepository;
+import br.com.meubairro.backend.service.CategoryService;
 
 @RestController
-@RequestMapping("/api/categorys")
+@RequestMapping("/api/categories")
 public class CategoryController {
 
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
 
-    public CategoryController(CategoryRepository categoryRepository) {
-        this.categoryRepository = categoryRepository;
+    public CategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
     }
 
     @GetMapping
-    public List<Category> listar() {
-        return categoryRepository.findAll();
+    public List<Category> findAll() {
+        return categoryService.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public Category findById(@PathVariable Long id) {
+        return categoryService.findById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Category criar(@RequestBody Category category) {
-        return categoryRepository.save(category);
-    }
-    
-    @GetMapping("/{id}")
-    public Category buscarPorId(@PathVariable Long id) {
-        return categoryRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada"));
+    public Category create(@RequestBody Category category) {
+        return categoryService.create(category);
     }
 }
