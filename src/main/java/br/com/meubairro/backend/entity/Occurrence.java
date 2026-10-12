@@ -17,6 +17,10 @@ public class Occurrence {
     @Column(length = 1000)
     private String descricao;
 
+    private String bairro;
+
+    private String rua;
+
     private String endereco;
 
     private String status = "PENDENTE";
@@ -26,6 +30,10 @@ public class Occurrence {
     @ManyToOne
     @JoinColumn(name = "category_id")
     private Category category;
+
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
     public Occurrence() {
     }
@@ -48,6 +56,22 @@ public class Occurrence {
 
     public void setDescricao(String descricao) {
         this.descricao = descricao;
+    }
+
+    public String getBairro() {
+        return bairro;
+    }
+
+    public void setBairro(String bairro) {
+        this.bairro = bairro;
+    }
+
+    public String getRua() {
+        return rua;
+    }
+
+    public void setRua(String rua) {
+        this.rua = rua;
     }
 
     public String getEndereco() {
@@ -76,5 +100,13 @@ public class Occurrence {
 
     public void setCategory(Category category) {
         this.category = category;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }
