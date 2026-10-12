@@ -35,4 +35,24 @@ public class UserService {
 
         return userRepository.save(user);
     }
+    
+
+    public User login(String email, String senha) {
+
+     User user = userRepository.findByEmail(email)
+        .orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "E-mail ou senha inválidos."
+        ));
+
+     if (!passwordEncoder.matches(senha, user.getSenha())) {
+        throw new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "E-mail ou senha inválidos."
+        );
+    }
+
+    return user;
+}
+
 }
