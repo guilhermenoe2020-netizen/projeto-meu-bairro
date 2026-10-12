@@ -34,22 +34,7 @@ public class ConfirmationService {
     @Transactional
     public Confirmation confirm(Long occurrenceId) {
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null
-                || !authentication.isAuthenticated()
-                || authentication.getName() == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Usuário não autenticado");
-        }
-
-        User user = userRepository
-                .findByEmail(authentication.getName())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário não encontrado"));
+        User user = getAuthenticatedUser();
 
         Occurrence occurrence = occurrenceRepository
                 .findById(occurrenceId)
@@ -75,6 +60,7 @@ public class ConfirmationService {
         return confirmationRepository.save(confirmation);
     }
 
+    @Transactional(readOnly = true)
     public long countByOccurrence(Long occurrenceId) {
 
         if (!occurrenceRepository.existsById(occurrenceId)) {
@@ -84,5 +70,43 @@ public class ConfirmationService {
         }
 
         return confirmationRepository.countByOccurrenceId(occurrenceId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasConfirmed(Long occurrenceId) {
+
+        User user = getAuthenticatedUser();
+
+        if (!occurrenceRepository.existsById(occurrenceId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Ocorrência não encontrada");
+        }
+
+        return confirmationRepository.existsByUserIdAndOccurrenceId(
+                user.getId(),
+                occurrenceId);
+    }
+
+    private User getAuthenticatedUser() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Usuário não autenticado");
+        }
+
+        return userRepository
+                .findByEmail(authentication.getName())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Usuário não encontrado"));
     }
 }

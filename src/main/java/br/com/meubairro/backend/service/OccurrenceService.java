@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import br.com.meubairro.backend.entity.Category;
@@ -40,6 +41,12 @@ public class OccurrenceService {
         return occurrenceRepository.findByBairroIgnoreCase(bairro);
     }
 
+    public List<Occurrence> findMine() {
+        User user = getAuthenticatedUser();
+        return occurrenceRepository.findByUserEmailIgnoreCase(
+                user.getEmail());
+    }
+
     public Occurrence findById(Long id) {
         return occurrenceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -47,25 +54,9 @@ public class OccurrenceService {
                         "Ocorrência não encontrada"));
     }
 
+    @Transactional
     public Occurrence create(OccurrenceRequest request) {
-
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null
-                || !authentication.isAuthenticated()
-                || authentication.getName() == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Usuário não autenticado");
-        }
-
-        String email = authentication.getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário autenticado não encontrado"));
+        User user = getAuthenticatedUser();
 
         Category category = categoryRepository.findById(
                 request.getCategoryId())
@@ -84,6 +75,84 @@ public class OccurrenceService {
         occurrence.setUser(user);
 
         return occurrenceRepository.save(occurrence);
+    }
+
+    @Transactional
+    public Occurrence update(Long id, OccurrenceRequest request) {
+        Occurrence occurrence = findById(id);
+        verifyOwner(occurrence);
+
+        Category category = categoryRepository.findById(
+                request.getCategoryId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Categoria não encontrada"));
+
+        occurrence.setTitulo(request.getTitulo());
+        occurrence.setDescricao(request.getDescricao());
+        occurrence.setBairro(request.getBairro());
+        occurrence.setRua(request.getRua());
+        occurrence.setEndereco(request.getEndereco());
+        occurrence.setCategory(category);
+
+        return occurrenceRepository.save(occurrence);
+    }
+
+    @Transactional
+    public Occurrence updateStatus(Long id, StatusRequest request) {
+        Occurrence occurrence = findById(id);
+        verifyOwner(occurrence);
+
+        if (request.getStatus() == null
+                || !(request.getStatus().equals("PENDENTE")
+                || request.getStatus().equals("RESOLVIDO"))) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Status inválido");
+        }
+
+        occurrence.setStatus(request.getStatus());
+
+        return occurrenceRepository.save(occurrence);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        Occurrence occurrence = findById(id);
+        verifyOwner(occurrence);
+
+        occurrenceRepository.delete(occurrence);
+    }
+
+    private User getAuthenticatedUser() {
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null
+                || authentication.getName().equals("anonymousUser")) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Usuário não autenticado");
+        }
+
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Usuário autenticado não encontrado"));
+    }
+
+    private void verifyOwner(Occurrence occurrence) {
+        User user = getAuthenticatedUser();
+
+        if (occurrence.getUser() == null
+                || !occurrence.getUser().getEmail()
+                        .equalsIgnoreCase(user.getEmail())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você não tem permissão para alterar esta ocorrência");
+        }
     }
 
     public static class OccurrenceRequest {
@@ -141,6 +210,19 @@ public class OccurrenceService {
 
         public void setCategoryId(Long categoryId) {
             this.categoryId = categoryId;
+        }
+    }
+
+    public static class StatusRequest {
+
+        private String status;
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
         }
     }
 }

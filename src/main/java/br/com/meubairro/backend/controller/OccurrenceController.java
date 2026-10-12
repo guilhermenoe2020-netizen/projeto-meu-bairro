@@ -31,6 +31,11 @@ public class OccurrenceController {
         return occurrenceService.findAll();
     }
 
+    @GetMapping("/mine")
+    public List<Occurrence> findMine() {
+        return occurrenceService.findMine();
+    }
+
     @GetMapping("/{id}")
     public Occurrence findById(@PathVariable Long id) {
         return occurrenceService.findById(id);
@@ -41,5 +46,25 @@ public class OccurrenceController {
     public Occurrence create(
             @RequestBody OccurrenceService.OccurrenceRequest request) {
         return occurrenceService.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public Occurrence update(
+            @PathVariable Long id,
+            @RequestBody OccurrenceService.OccurrenceRequest request) {
+        return occurrenceService.update(id, request);
+    }
+
+    @PatchMapping("/{id}/status")
+    public Occurrence updateStatus(
+            @PathVariable Long id,
+            @RequestBody OccurrenceService.StatusRequest request) {
+        return occurrenceService.updateStatus(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        occurrenceService.delete(id);
     }
 }
