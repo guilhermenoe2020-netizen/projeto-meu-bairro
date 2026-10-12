@@ -36,6 +36,10 @@ public class OccurrenceService {
         return occurrenceRepository.findAll();
     }
 
+    public List<Occurrence> findByBairro(String bairro) {
+        return occurrenceRepository.findByBairroIgnoreCase(bairro);
+    }
+
     public Occurrence findById(Long id) {
         return occurrenceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -48,7 +52,8 @@ public class OccurrenceService {
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !authentication.isAuthenticated()
+        if (authentication == null
+                || !authentication.isAuthenticated()
                 || authentication.getName() == null) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
@@ -62,12 +67,14 @@ public class OccurrenceService {
                         HttpStatus.UNAUTHORIZED,
                         "Usuário autenticado não encontrado"));
 
-        Category category = categoryRepository.findById(request.getCategoryId())
+        Category category = categoryRepository.findById(
+                request.getCategoryId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Categoria não encontrada"));
 
         Occurrence occurrence = new Occurrence();
+
         occurrence.setTitulo(request.getTitulo());
         occurrence.setDescricao(request.getDescricao());
         occurrence.setBairro(request.getBairro());

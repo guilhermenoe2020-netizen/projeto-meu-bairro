@@ -4,17 +4,10 @@ package br.com.meubairro.backend.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import br.com.meubairro.backend.entity.Occurrence;
 import br.com.meubairro.backend.service.OccurrenceService;
-import br.com.meubairro.backend.service.OccurrenceService.OccurrenceRequest;
 
 @RestController
 @RequestMapping("/api/occurrences")
@@ -22,12 +15,19 @@ public class OccurrenceController {
 
     private final OccurrenceService occurrenceService;
 
-    public OccurrenceController(OccurrenceService occurrenceService) {
+    public OccurrenceController(
+            OccurrenceService occurrenceService) {
         this.occurrenceService = occurrenceService;
     }
 
     @GetMapping
-    public List<Occurrence> findAll() {
+    public List<Occurrence> findAll(
+            @RequestParam(required = false) String bairro) {
+
+        if (bairro != null && !bairro.isBlank()) {
+            return occurrenceService.findByBairro(bairro.trim());
+        }
+
         return occurrenceService.findAll();
     }
 
@@ -38,7 +38,8 @@ public class OccurrenceController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Occurrence create(@RequestBody OccurrenceRequest request) {
+    public Occurrence create(
+            @RequestBody OccurrenceService.OccurrenceRequest request) {
         return occurrenceService.create(request);
     }
 }
