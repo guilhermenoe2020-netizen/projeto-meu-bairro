@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Bairro — Problemas urbanos da comunidade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="header"></header>
+
+<main id="app" class="container" style="padding-bottom:40px"></main>
+
+<footer>
+  <strong style="color:var(--text)">Meu Bairro</strong> — Protótipo visual para fins de demonstração. Dados fictícios.
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal-card">
+    <h3>Tem certeza?</h3>
+    <p id="modal-text"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" onclick="modalYes()">Excluir</button>
+    </div>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
