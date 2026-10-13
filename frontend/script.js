@@ -150,11 +150,13 @@ async function carregarMinhasOcorrencias(render = true) {
     if (!resposta.ok) {
       const detalhe = await resposta.text();
       console.error('Erro ao carregar minhas ocorrências:', resposta.status, detalhe);
-      if (resposta.status === 401 || resposta.status === 403) {
-        logout();
-      } else {
-        toast('Não foi possível carregar suas ocorrências.', 'info');
-      }
+      if (resposta.status === 401) {
+  logout();
+} else if (resposta.status === 403) {
+  toast('Você não tem permissão para acessar esta lista.', 'info');
+} else {
+  toast('Não foi possível carregar suas ocorrências.', 'info');
+}
       return false;
     }
 
@@ -183,10 +185,11 @@ async function restaurarSessao() {
     });
 
     if (!resposta.ok) {
-      if (resposta.status === 401 || resposta.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('currentUser');
-      }
+      if (resposta.status === 401) {
+  localStorage.removeItem('token');
+  localStorage.removeItem('currentUser');
+  state.currentUser = null;
+}
       return;
     }
 
@@ -275,11 +278,16 @@ async function confirmar(id) {
       }
     );
 
-    if (resposta.status === 401 || resposta.status === 403) {
-      toast('Sua sessão expirou. Entre novamente.', 'info');
-      logout();
-      return false;
-    }
+    if (resposta.status === 401) {
+  toast('Sua sessão expirou. Entre novamente.', 'info');
+  logout();
+  return false;
+}
+
+if (resposta.status === 403) {
+  toast('Você já confirmou esta ocorrência.', 'info');
+  return false;
+}
 
     if (resposta.status === 409) {
       toast('Você já confirmou esta ocorrência.', 'info');
