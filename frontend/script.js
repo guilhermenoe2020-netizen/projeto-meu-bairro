@@ -61,7 +61,7 @@ let occurrences = [];
 let myOccurrences = [];
 let confirmationState = {};
 
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'https://projeto-meu-bairro.onrender.com/api';
 
 function formatarData(data) {
   if (!data) return '';
