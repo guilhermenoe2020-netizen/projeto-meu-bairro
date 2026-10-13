@@ -75,7 +75,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(
-            List.of("http://127.0.0.1:5500")
+            List.of("http://127.0.0.1:5500", "https://frolicking-souffle-a723b8.netlify.app")
         );
 
         configuration.setAllowedMethods(
