@@ -52,6 +52,7 @@ let state = {
   currentUser: null,
   filters: { q:'', bairro:'', categoria:'', status:'' },
   pendingPhoto: null,
+  pendingPhotoFile: null,
   pendingConfirmId: null
 };
 
@@ -110,6 +111,30 @@ async function jsonOpcional(resposta) {
   return texto ? JSON.parse(texto) : null;
 }
 
+async function carregarFotosOcorrencia(ocorrencia) {
+  try {
+    const resposta = await fetch(
+      `${API_BASE}/occurrences/${ocorrencia.id}/images`,
+      { cache: 'no-store' }
+    );
+
+    if (!resposta.ok) return ocorrencia;
+
+    const imagens = await resposta.json();
+
+    if (Array.isArray(imagens) && imagens.length > 0) {
+      ocorrencia.foto = imagens[0].imageUrl;
+    }
+
+    return ocorrencia;
+  } catch (erro) {
+    console.error(
+      `Erro ao carregar fotos da ocorrência ${ocorrencia.id}:`,
+      erro
+    );
+    return ocorrencia;
+  }
+}
 
 async function carregarOcorrencias(render = true) {
   try {
@@ -123,7 +148,11 @@ async function carregarOcorrencias(render = true) {
     }
 
     const dados = await jsonOpcional(resposta);
-    occurrences = listaDaResposta(dados).map(adaptarOcorrencia);
+    occurrences = await Promise.all(
+  listaDaResposta(dados)
+    .map(adaptarOcorrencia)
+    .map(carregarFotosOcorrencia)
+);
 
     // Busca a quantidade de confirmações de todas as ocorrências.
     await Promise.all(
@@ -176,7 +205,11 @@ async function carregarMinhasOcorrencias(render = true) {
       return false;
     }
 
-    myOccurrences = listaDaResposta(await jsonOpcional(resposta)).map(adaptarOcorrencia);
+    myOccurrences = await Promise.all(
+  listaDaResposta(await jsonOpcional(resposta))
+    .map(adaptarOcorrencia)
+    .map(carregarFotosOcorrencia)
+);
     if (render && parseRoute()[0] === 'minhas') renderView('minhas');
     return true;
   } catch (erro) {
@@ -982,28 +1015,52 @@ function registrarView(){
         '<div class="field"><label>Categoria</label><select id="oc-categoria" required>' +
           '<option value="" disabled selected>Selecione a categoria</option>' + catOpts + '</select></div>' +
         '<div class="field"><label>Foto</label>' + photoHtml +
-          '<p class="muted" style="font-size:.8rem;margin-top:8px">A imagem é apenas uma prévia; o backend atual não possui campo ou endpoint para salvá-la.</p></div>' +
+          '<p class="muted" style="font-size:.8rem;margin-top:8px">A imagem será enviada junto com a ocorrência.</p></div>' +
         '<button type="submit" class="btn btn-primary btn-block btn-lg">' + icon('plus',18) + ' Publicar ocorrência</button>' +
       '</form>' +
     '</div></section>'
   );
 }
 
-function previewPhoto(input){
+
+function previewPhoto(input) {
   const file = input.files && input.files[0];
-  if(!file) return;
+  if (!file) return;
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    toast('Selecione uma imagem JPG, PNG ou WebP.', 'info');
+    input.value = '';
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    toast('A imagem deve ter no máximo 5 MB.', 'info');
+    input.value = '';
+    return;
+  }
+
   const reader = new FileReader();
-  reader.onload = function(ev){
+
+  reader.onload = function (ev) {
     state.pendingPhoto = ev.target.result;
+    state.pendingPhotoFile = file;
     renderView('registrar');
   };
+
+  reader.onerror = function () {
+    toast('Não foi possível carregar a imagem.', 'info');
+  };
+
   reader.readAsDataURL(file);
 }
 
-function removePhoto(){
+function removePhoto() {
   state.pendingPhoto = null;
+  state.pendingPhotoFile = null;
   renderView('registrar');
 }
+
+
 
 
 async function publicar(e) {
@@ -1027,6 +1084,7 @@ async function publicar(e) {
   const token = localStorage.getItem('token');
 
   try {
+    // 1. Criar a ocorrência
     const resposta = await fetch(`${API_BASE}/occurrences`, {
       method: 'POST',
       headers: {
@@ -1046,42 +1104,73 @@ async function publicar(e) {
     if (!resposta.ok) {
       const erro = await resposta.text();
       console.error('Erro ao publicar:', resposta.status, erro);
-      toast('Não foi possível publicar. Confira o console.', 'info');
+      toast('Não foi possível publicar a ocorrência.', 'info');
       return false;
     }
 
-    let criada = null;
-    const texto = await resposta.text();
+    const criada = await resposta.json();
 
-    if (texto) {
-      try {
-        criada = JSON.parse(texto);
-      } catch {
-        criada = null;
+    if (!criada?.id) {
+      console.error('A API não retornou o ID da ocorrência:', criada);
+      toast('Ocorrência criada, mas não foi possível identificar seu ID.', 'info');
+      return false;
+    }
+
+    // 2. Enviar a foto selecionada, se houver
+    if (state.pendingPhotoFile) {
+      const formData = new FormData();
+      formData.append('files', state.pendingPhotoFile);
+
+      const respostaFoto = await fetch(
+        `${API_BASE}/occurrences/${criada.id}/images`,
+        {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: formData
+        }
+      );
+
+      if (!respostaFoto.ok) {
+        const erroFoto = await respostaFoto.text();
+        console.error(
+          'Ocorrência criada, mas houve erro no upload da foto:',
+          respostaFoto.status,
+          erroFoto
+        );
+
+        toast(
+          'Ocorrência criada, mas a foto não foi enviada. Consulte o console.',
+          'info'
+        );
+
+        return false;
       }
     }
 
+    // 3. Limpar a foto e atualizar as listas
     state.pendingPhoto = null;
+    state.pendingPhotoFile = null;
 
     await carregarOcorrencias(false);
+
     if (state.currentUser && localStorage.getItem('token')) {
       await carregarMinhasOcorrencias(false);
     }
 
-    if (criada?.id) {
-      toast('Ocorrência registrada com sucesso!');
-      go('/ocorrencia/' + criada.id);
-    } else {
-      toast('Ocorrência registrada com sucesso!');
-      go('/ocorrencias');
-    }
+    toast('Ocorrência registrada com sucesso!');
+
+    go('/ocorrencia/' + criada.id);
+
   } catch (erro) {
-    console.error('Erro ao conectar com a API:', erro);
-    toast('Não foi possível conectar ao servidor.', 'info');
+    console.error('Erro ao publicar ocorrência ou enviar foto:', erro);
+    toast('Não foi possível concluir a publicação. Confira o console.', 'info');
   }
 
   return false;
 }
+
 
 
 /* ---------- Edição de ocorrência ---------- */
