@@ -327,57 +327,8 @@
     .modal-actions .btn{width:100%;padding-left:10px;padding-right:10px}
   }
 
-  /* ---------- Menu mobile: organização final ---------- */
-  @media (max-width:860px){
-    header.open .auth-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      align-items:center;
-      gap:8px;
-      padding:10px 0 0;
-      margin-top:10px;
-    }
-    header.open .auth-actions > .btn-primary:first-child{
-      grid-column:1 / -1;
-      order:1;
-    }
-    header.open .auth-actions .user-chip{
-      grid-column:auto;
-      order:2;
-      justify-content:flex-start;
-      min-width:0;
-      overflow:hidden;
-      padding:0 4px;
-      font-size:.82rem;
-    }
-    header.open .auth-actions > .btn-ghost:last-child{
-      grid-column:auto;
-      order:3;
-      width:100%;
-      min-height:40px;
-    }
-    header.open .auth-actions .avatar{
-      flex:0 0 30px;
-      width:30px;
-      height:30px;
-    }
-    header.open .nav{
-      gap:4px;
-      padding:8px 0 0;
-    }
-    header.open .nav-link{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      min-height:40px;
-      padding:8px 10px;
-      border-radius:8px;
-      font-size:.86rem;
-    }
-    header.open .nav-link.active{
-      background:var(--primary-soft);
-    }
-  }
+
+
 /* ---------- Correções da tela de detalhes no mobile ---------- */
 @media (max-width: 600px) {
   .detail-wrap,
@@ -446,5 +397,108 @@
   .detail-media {
     width: 100%;
     height: 190px;
+  }
+}
+
+/* ---------- Menu mobile organizado ---------- */
+@media (max-width: 860px) {
+  header.open .header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    align-items: center;
+    gap: 0 10px;
+  }
+
+  header.open .nav {
+    grid-column: 1 / -1;
+    order: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+    padding: 12px 0 2px;
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  header.open .nav-link {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 0.9rem;
+    text-align: left;
+  }
+
+  header.open .nav-link.active {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+    font-weight: 700;
+  }
+
+  header.open .auth-actions {
+    grid-column: 1 / -1;
+    order: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 0 0;
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  header.open .auth-actions > .btn-primary:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  header.open .auth-actions .user-chip {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.82rem;
+    white-space: normal;
+  }
+
+  header.open .auth-actions .user-chip .avatar {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  header.open .auth-actions > .btn-ghost:last-child {
+    grid-column: 2;
+    grid-row: 2;
+    width: auto;
+    min-height: 40px;
+    padding: 9px 13px;
+  }
+
+  header.open .menu-btn {
+    align-self: center;
+  }
+
+  @media (max-width: 380px) {
+    header.open .auth-actions {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+    }
+
+    header.open .auth-actions .user-chip {
+      font-size: 0.75rem;
+    }
+
+    header.open .auth-actions > .btn-ghost:last-child {
+      padding: 8px 10px;
+      font-size: 0.8rem;
+    }
   }
 }
