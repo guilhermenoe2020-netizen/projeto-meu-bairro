@@ -13,4 +13,6 @@ public interface ConfirmationRepository
     );
 
     long countByOccurrenceId(Long occurrenceId);
+
+    void deleteAllByOccurrenceId(Long occurrenceId);
 }

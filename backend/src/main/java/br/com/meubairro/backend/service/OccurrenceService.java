@@ -11,9 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import br.com.meubairro.backend.entity.Category;
+import br.com.meubairro.backend.entity.Confirmation;
 import br.com.meubairro.backend.entity.Occurrence;
 import br.com.meubairro.backend.entity.User;
 import br.com.meubairro.backend.repository.CategoryRepository;
+import br.com.meubairro.backend.repository.ConfirmationRepository;
 import br.com.meubairro.backend.repository.OccurrenceRepository;
 import br.com.meubairro.backend.repository.UserRepository;
 
@@ -23,14 +25,18 @@ public class OccurrenceService {
     private final OccurrenceRepository occurrenceRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final ConfirmationRepository confirmationRepository;
 
     public OccurrenceService(
             OccurrenceRepository occurrenceRepository,
             CategoryRepository categoryRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ConfirmationRepository confirmationRepository) {
+
         this.occurrenceRepository = occurrenceRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
+        this.confirmationRepository = confirmationRepository;
     }
 
     public List<Occurrence> findAll() {
@@ -43,6 +49,7 @@ public class OccurrenceService {
 
     public List<Occurrence> findMine() {
         User user = getAuthenticatedUser();
+
         return occurrenceRepository.findByUserEmailIgnoreCase(
                 user.getEmail());
     }
@@ -99,13 +106,17 @@ public class OccurrenceService {
     }
 
     @Transactional
-    public Occurrence updateStatus(Long id, StatusRequest request) {
+    public Occurrence updateStatus(
+            Long id,
+            StatusRequest request) {
+
         Occurrence occurrence = findById(id);
         verifyOwner(occurrence);
 
         if (request.getStatus() == null
                 || !(request.getStatus().equals("PENDENTE")
                 || request.getStatus().equals("RESOLVIDO"))) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Status inválido");
@@ -119,8 +130,14 @@ public class OccurrenceService {
     @Transactional
     public void delete(Long id) {
         Occurrence occurrence = findById(id);
+
+        // Apenas o autor pode excluir a ocorrência.
         verifyOwner(occurrence);
 
+        // Remove as confirmações relacionadas a esta ocorrência.
+        confirmationRepository.deleteAllByOccurrenceId(id);
+
+        // Exclui a ocorrência após remover suas confirmações.
         occurrenceRepository.delete(occurrence);
     }
 
@@ -132,6 +149,7 @@ public class OccurrenceService {
                 || !authentication.isAuthenticated()
                 || authentication.getName() == null
                 || authentication.getName().equals("anonymousUser")) {
+
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "Usuário não autenticado");
@@ -149,6 +167,7 @@ public class OccurrenceService {
         if (occurrence.getUser() == null
                 || !occurrence.getUser().getEmail()
                         .equalsIgnoreCase(user.getEmail())) {
+
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Você não tem permissão para alterar esta ocorrência");
