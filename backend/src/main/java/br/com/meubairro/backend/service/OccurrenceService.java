@@ -11,11 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import br.com.meubairro.backend.entity.Category;
-import br.com.meubairro.backend.entity.Confirmation;
 import br.com.meubairro.backend.entity.Occurrence;
 import br.com.meubairro.backend.entity.User;
 import br.com.meubairro.backend.repository.CategoryRepository;
 import br.com.meubairro.backend.repository.ConfirmationRepository;
+import br.com.meubairro.backend.repository.OccurrenceImageRepository;
 import br.com.meubairro.backend.repository.OccurrenceRepository;
 import br.com.meubairro.backend.repository.UserRepository;
 
@@ -26,17 +26,20 @@ public class OccurrenceService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final ConfirmationRepository confirmationRepository;
+    private final OccurrenceImageRepository occurrenceImageRepository;
 
     public OccurrenceService(
             OccurrenceRepository occurrenceRepository,
             CategoryRepository categoryRepository,
             UserRepository userRepository,
-            ConfirmationRepository confirmationRepository) {
+            ConfirmationRepository confirmationRepository,
+            OccurrenceImageRepository occurrenceImageRepository) {
 
         this.occurrenceRepository = occurrenceRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.confirmationRepository = confirmationRepository;
+        this.occurrenceImageRepository = occurrenceImageRepository;
     }
 
     public List<Occurrence> findAll() {
@@ -134,10 +137,13 @@ public class OccurrenceService {
         // Apenas o autor pode excluir a ocorrência.
         verifyOwner(occurrence);
 
-        // Remove as confirmações relacionadas a esta ocorrência.
+        // Remove primeiro as fotos relacionadas no banco.
+        occurrenceImageRepository.deleteAllByOccurrenceId(id);
+
+        // Remove as confirmações relacionadas.
         confirmationRepository.deleteAllByOccurrenceId(id);
 
-        // Exclui a ocorrência após remover suas confirmações.
+        // Exclui a ocorrência.
         occurrenceRepository.delete(occurrence);
     }
 

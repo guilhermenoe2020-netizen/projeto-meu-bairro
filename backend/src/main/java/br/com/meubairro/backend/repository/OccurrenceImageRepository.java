@@ -1,3 +1,4 @@
+
 package br.com.meubairro.backend.repository;
 
 import java.util.List;
@@ -12,4 +13,6 @@ public interface OccurrenceImageRepository
     List<OccurrenceImage> findByOccurrenceId(Long occurrenceId);
 
     long countByOccurrenceId(Long occurrenceId);
+
+    void deleteAllByOccurrenceId(Long occurrenceId);
 }
