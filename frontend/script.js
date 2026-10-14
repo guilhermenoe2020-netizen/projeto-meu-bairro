@@ -1425,6 +1425,176 @@ async function atualizarMonitoramentoConfirmacoes() {
 }
 
 
+/* ---------- Tela de carregamento da API ---------- */
+
+let tentativaInicial = 0;
+let temporizadorCarregamento = null;
+
+function criarTelaCarregamento() {
+  let tela = document.getElementById('server-loading');
+
+  if (tela) return tela;
+
+  tela = document.createElement('div');
+  tela.id = 'server-loading';
+
+  tela.innerHTML = `
+    <div class="server-loading-box" role="status" aria-live="polite">
+      <div class="server-spinner" id="server-spinner"></div>
+
+      <h2 id="server-loading-title">Conectando ao servidor...</h2>
+
+      <p id="server-loading-message">
+        Estamos preparando o Meu Bairro. Isso pode levar alguns instantes.
+      </p>
+
+      <button id="server-retry" type="button" hidden>
+        Tentar novamente
+      </button>
+    </div>
+  `;
+
+  Object.assign(tela.style, {
+    position: 'fixed',
+    inset: '0',
+    zIndex: '99999',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    background: '#ffffff',
+    color: '#20252b',
+    textAlign: 'center'
+  });
+
+  const estilo = document.createElement('style');
+  estilo.textContent = `
+    .server-loading-box {
+      max-width: 380px;
+      width: 100%;
+      font-family: inherit;
+    }
+
+    .server-spinner {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 22px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: server-spin .8s linear infinite;
+    }
+
+    @keyframes server-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #server-loading-title {
+      font-size: 1.2rem;
+      margin: 0 0 10px;
+    }
+
+    #server-loading-message {
+      color: #68717d;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    #server-retry {
+      margin-top: 20px;
+      padding: 11px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  `;
+
+  document.head.appendChild(estilo);
+  document.body.appendChild(tela);
+
+  return tela;
+}
+
+function atualizarTelaCarregamento(titulo, mensagem, erro = false) {
+  criarTelaCarregamento();
+
+  document.getElementById('server-loading-title').textContent = titulo;
+  document.getElementById('server-loading-message').textContent = mensagem;
+  document.getElementById('server-spinner').hidden = erro;
+  document.getElementById('server-retry').hidden = !erro;
+}
+
+function ocultarTelaCarregamento() {
+  clearTimeout(temporizadorCarregamento);
+
+  const tela = document.getElementById('server-loading');
+  if (tela) tela.remove();
+}
+
+async function iniciarAplicacao() {
+  const tentativa = ++tentativaInicial;
+
+  criarTelaCarregamento();
+
+  atualizarTelaCarregamento(
+    'Conectando ao servidor...',
+    'Estamos preparando o Meu Bairro. Isso pode levar alguns instantes.'
+  );
+
+  temporizadorCarregamento = setTimeout(() => {
+    if (tentativa !== tentativaInicial) return;
+
+    atualizarTelaCarregamento(
+      'A conexão está demorando',
+      'O servidor pode estar iniciando após um período sem uso. Aguarde mais um pouco.'
+    );
+  }, 7000);
+
+  try {
+    await carregarCategorias();
+    await restaurarSessao();
+
+    const carregouOcorrencias = await carregarOcorrencias();
+
+    if (tentativa !== tentativaInicial) return;
+
+    if (!carregouOcorrencias) {
+      atualizarTelaCarregamento(
+        'Não foi possível conectar ao servidor',
+        'O servidor pode estar temporariamente indisponível. Tente novamente em alguns instantes.',
+        true
+      );
+
+      document.getElementById('server-retry').onclick = iniciarAplicacao;
+      return;
+    }
+
+    ocultarTelaCarregamento();
+    atualizarMonitoramentoConfirmacoes();
+
+  } catch (erro) {
+    console.error('Erro ao iniciar o Meu Bairro:', erro);
+
+    if (tentativa !== tentativaInicial) return;
+
+    atualizarTelaCarregamento(
+      'Não foi possível conectar ao servidor',
+      'Verifique sua conexão e tente novamente.',
+      true
+    );
+
+    document.getElementById('server-retry').onclick = iniciarAplicacao;
+
+  } finally {
+    clearTimeout(temporizadorCarregamento);
+  }
+}
+
+
 window.addEventListener(
   'hashchange',
   atualizarMonitoramentoConfirmacoes
@@ -1438,9 +1608,4 @@ document.addEventListener(
 
 window.addEventListener('hashchange', router);
 
-window.addEventListener('DOMContentLoaded', async () => {
-  await carregarCategorias();
-  await restaurarSessao();
-  await carregarOcorrencias();
-  atualizarMonitoramentoConfirmacoes();
-});
+window.addEventListener('DOMContentLoaded', iniciarAplicacao);
