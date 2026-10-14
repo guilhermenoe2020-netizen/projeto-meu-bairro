@@ -110,9 +110,12 @@ async function jsonOpcional(resposta) {
   return texto ? JSON.parse(texto) : null;
 }
 
+
 async function carregarOcorrencias(render = true) {
   try {
-    const resposta = await fetch(`${API_BASE}/occurrences`);
+    const resposta = await fetch(`${API_BASE}/occurrences`, {
+      cache: 'no-store'
+    });
 
     if (!resposta.ok) {
       const detalhe = await resposta.text();
@@ -122,7 +125,19 @@ async function carregarOcorrencias(render = true) {
     const dados = await jsonOpcional(resposta);
     occurrences = listaDaResposta(dados).map(adaptarOcorrencia);
 
+    // Busca a quantidade de confirmações de todas as ocorrências.
+    await Promise.all(
+      occurrences.map(async (o) => {
+        const resultado = await carregarConfirmacoes(o.id);
+
+        if (resultado) {
+          o.confirmations = resultado.total;
+        }
+      })
+    );
+
     if (render) renderView(...parseRoute());
+
     return true;
   } catch (erro) {
     console.error('Erro ao carregar ocorrências:', erro);
@@ -130,6 +145,7 @@ async function carregarOcorrencias(render = true) {
     return false;
   }
 }
+
 
 async function carregarMinhasOcorrencias(render = true) {
   const token = localStorage.getItem('token');
@@ -232,13 +248,19 @@ async function carregarCategorias() {
 }
 
 
+
+
 async function carregarConfirmacoes(id) {
   const occurrenceId = Number(id);
-  if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) return null;
+
+  if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) {
+    return null;
+  }
 
   try {
     const resposta = await fetch(
-      `${API_BASE}/occurrences/${occurrenceId}/confirmations/count`
+      `${API_BASE}/occurrences/${occurrenceId}/confirmations/count`,
+      { cache: 'no-store' }
     );
 
     if (!resposta.ok) {
@@ -252,12 +274,23 @@ async function carregarConfirmacoes(id) {
       total: Number(dados?.totalConfirmations ?? 0)
     };
 
+    const elemento = document.getElementById(
+      `confirmation-count-${occurrenceId}`
+    );
+
+    if (elemento) {
+      elemento.innerHTML =
+        icon('check-circle', 16) + ' ' +
+        esc(confirmText(confirmationState[occurrenceId].total));
+    }
+
     return confirmationState[occurrenceId];
   } catch (erro) {
     console.error('Erro ao carregar confirmações:', erro);
     return null;
   }
 }
+
 
 async function confirmar(id) {
   const occurrenceId = Number(id);
@@ -387,18 +420,32 @@ function statusBadge(status){
 }
 
 /* ---------- Card de ocorrência ---------- */
-function occurrenceCard(o){
+
+function occurrenceCard(o) {
+  const total = confirmationState[o.id]?.total ?? o.confirmations ?? 0;
+
   return '<article class="card">' +
-    '<div class="card-media" onclick="go(\'/ocorrencia/' + o.id + '\')">' + photoFor(o) + '</div>' +
+    '<div class="card-media" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
+      photoFor(o) +
+    '</div>' +
     '<div class="card-body">' +
       '<div class="card-top">' + catBadge(o.categoria) + statusBadge(o.status) + '</div>' +
-      '<h3 class="card-title" onclick="go(\'/ocorrencia/' + o.id + '\')">' + esc(o.title) + '</h3>' +
-      '<p class="card-loc">' + icon('pin',15) + ' ' + esc(o.bairro) + ' • ' + esc(o.rua) + '</p>' +
+      '<h3 class="card-title" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
+        esc(o.title) +
+      '</h3>' +
+      '<p class="card-loc">' + icon('pin', 15) + ' ' +
+        esc(o.bairro) + ' • ' + esc(o.rua) +
+      '</p>' +
       '<p class="card-desc">' + esc(truncate(o.description)) + '</p>' +
+      '<p class="muted" id="confirmation-count-' + o.id + '">' +
+        icon('check-circle', 16) + ' ' + esc(confirmText(total)) +
+      '</p>' +
       '<div class="card-footer">' +
-        '<span>' + icon('clock',15) + ' ' + esc(o.data) + '</span>' +
+        '<span>' + icon('clock', 15) + ' ' + esc(o.data) + '</span>' +
       '</div>' +
-      '<button class="btn btn-outline btn-block" onclick="go(\'/ocorrencia/' + o.id + '\')">Ver detalhes</button>' +
+      '<button class="btn btn-outline btn-block" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
+        'Ver detalhes' +
+      '</button>' +
     '</div>' +
   '</article>';
 }
@@ -556,10 +603,10 @@ const totalConfirmacoes = confirmation?.total ?? o.confirmations ?? 0;
 
 const confirmArea =
   '<div class="confirm-area" style="margin-top:16px">' +
-    '<p class="muted" style="margin-bottom:10px">' +
-      icon('check-circle', 16) + ' ' +
-      esc(confirmText(totalConfirmacoes)) +
-    '</p>' +
+    '<p class="muted" id="confirmation-count-' + o.id + '" style="margin-bottom:10px">' +
+  icon('check-circle', 16) + ' ' +
+  esc(confirmText(totalConfirmacoes)) +
+'</p>' +
     (autenticado
       ? '<button class="btn btn-outline" onclick="confirmar(' + o.id + ')">' +
           icon('check-circle', 16) + ' Confirmar ocorrência' +
@@ -1213,8 +1260,13 @@ function renderView(name, id){
   }
   document.getElementById('app').innerHTML = html;
   renderHeader();
-  if(name === 'ocorrencias') renderListGrid();
-  window.scrollTo({ top:0, behavior:'smooth' });
+  if (name === 'ocorrencias') renderListGrid();
+
+if (name === 'ocorrencia') {
+  carregarConfirmacoes(id);
+}
+
+window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 
@@ -1243,10 +1295,63 @@ function logout(){
   else go('/');
 }
 
+
+
+
+let confirmationRefreshTimer = null;
+
+async function atualizarMonitoramentoConfirmacoes() {
+  clearInterval(confirmationRefreshTimer);
+
+  const rota = parseRoute();
+
+  async function atualizarContagensVisiveis() {
+    if (document.visibilityState !== 'visible') return;
+
+    if (rota[0] === 'ocorrencia') {
+      const id = Number(parseRoute()[1]);
+
+      if (Number.isInteger(id) && id > 0) {
+        await carregarConfirmacoes(id);
+      }
+      return;
+    }
+
+    if (rota[0] === 'ocorrencias' || rota[0] === 'home') {
+      const lista = rota[0] === 'home'
+        ? occurrences.slice().sort((a, b) => b.id - a.id).slice(0, 3)
+        : occurrences;
+
+      await Promise.all(
+        lista.map(o => carregarConfirmacoes(o.id))
+      );
+    }
+  }
+
+  await atualizarContagensVisiveis();
+
+  confirmationRefreshTimer = setInterval(() => {
+    atualizarContagensVisiveis();
+  }, 15000);
+}
+
+
+window.addEventListener(
+  'hashchange',
+  atualizarMonitoramentoConfirmacoes
+);
+
+document.addEventListener(
+  'visibilitychange',
+  atualizarMonitoramentoConfirmacoes
+);
+
+
 window.addEventListener('hashchange', router);
 
 window.addEventListener('DOMContentLoaded', async () => {
   await carregarCategorias();
   await restaurarSessao();
   await carregarOcorrencias();
+  atualizarMonitoramentoConfirmacoes();
 });

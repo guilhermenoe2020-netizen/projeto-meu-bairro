@@ -3,6 +3,7 @@ package br.com.meubairro.backend.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "tb_Occurrence")
@@ -25,7 +26,7 @@ public class Occurrence {
 
     private String status = "PENDENTE";
 
-    private LocalDateTime dataRegistro = LocalDateTime.now();
+    private LocalDateTime dataRegistro = LocalDateTime.now(ZoneId.of("America/Manaus"));
 
     @ManyToOne
     @JoinColumn(name = "category_id")
