@@ -1,9 +1,10 @@
+/* ==========================================================================
+   MEU BAIRRO — script.js (site real)
+   Visual do protótipo + integração com a API (Spring Boot no Render).
+   O loader já está no index.html (window.esconderLoader).
+   ========================================================================== */
 
-/* ============================================================
-   MEU BAIRRO — Front-end HTML/CSS/JS integrado à API.
-   ============================================================ */
-
-/* ---------- Ícones (SVG inline) ---------- */
+/* ---------- Ícones ---------- */
 const ICONS = {
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
@@ -22,13 +23,12 @@ const ICONS = {
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
   home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/>',
   'arrow-left': '<path d="m12 19-7-7 7-7M19 12H5"/>',
+  'arrow-right': '<path d="M5 12h14M12 5l7 7-7 7"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
-  'arrow-right': '<path d="M5 12h14M12 5l7 7-7 7"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
   trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z"/><path d="M10 11v6M14 11v6"/>',
-  undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
   'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'
 };
 
@@ -38,46 +38,70 @@ function icon(name, size = 18){
          '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
 
-/* ---------- Categorias ---------- */
+/* ---------- Categorias e constantes ---------- */
 const CATEGORIES = {
-  'Buraco':      { slug:'buraco',      icon:'buraco',      grad:'linear-gradient(135deg,#8a919c,#4b5058)' },
-  'Lixo':        { slug:'lixo',        icon:'lixo',        grad:'linear-gradient(135deg,#5f9e6e,#2f6b45)' },
-  'Iluminação':  { slug:'iluminacao',  icon:'iluminacao',  grad:'linear-gradient(135deg,#f2b544,#d97706)' },
-  'Alagamento':  { slug:'alagamento',  icon:'alagamento',  grad:'linear-gradient(135deg,#5aa7d6,#1e5f8a)' },
-  'Outro':       { slug:'outro',       icon:'outro',       grad:'linear-gradient(135deg,#9a7bb8,#6d4f8f)' }
+  'Buraco':     { slug: 'buraco',     icon: 'buraco' },
+  'Lixo':       { slug: 'lixo',       icon: 'lixo' },
+  'Iluminação': { slug: 'iluminacao', icon: 'iluminacao' },
+  'Alagamento': { slug: 'alagamento', icon: 'alagamento' },
+  'Outro':      { slug: 'outro',      icon: 'outro' }
 };
 
-/* ---------- Estado da interface ---------- */
+const API_BASE = 'https://projeto-meu-bairro.onrender.com/api';
+const BAIRROS = ['Cidade Nova', 'Flores', 'Parque 10', 'Adrianópolis'];
+const MAX_FOTOS = 3;
+const HOME_RECENTES = 4;
+
+/* ---------- Estado ---------- */
 let state = {
   currentUser: null,
-  filters: { q:'', bairro:'', categoria:'', status:'' },
-  pendingPhoto: null,
-  pendingPhotoFile: null,
+  filters: { q: '', bairro: '', categoria: '', status: '' },
+  pendingPhotos: [],          // [{ file, src }]
   pendingConfirmId: null
 };
 
-
-/* ---------- Dados vindos do Spring Boot ---------- */
 let occurrences = [];
 let myOccurrences = [];
 let confirmationState = {};
+let categoriasAPI = [];
 
-const API_BASE = 'https://projeto-meu-bairro.onrender.com/api';
+/* ===================== BLOCO A — constantes e estado ===================== */
+const TTL_NAVEGACAO = 60 * 1000;      // navegar: só atualiza se os dados têm mais de 60 s
+const TTL_VOLTAR_ABA = 2 * 60 * 1000; // voltar para a aba: só se passaram mais de 2 min
 
+let ultimaTentativaOcorrencias = 0;   // também evita martelar o servidor se ele estiver fora
+let ocorrenciasEmCarga = null;
+let minhasEmCarga = null;
+let ultimaCargaMinhas = 0;
+let ultimaCargaMinhasUser = null;
+let repinturaTimer = null;
+
+const fotosCache = new Map();         // id -> [urls]
+const fotosEmCarga = new Map();       // id -> Promise (evita pedir a mesma foto 2x)
+const fotosSemResultado = new Map();  // id -> quando veio vazio/erro (não insiste por 60 s)
+let fotosObserver = null;
+
+
+
+let galeriaIdx = 0;
+let lb = { fotos: [], i: 0, titulo: '' };
+
+
+/* ==========================================================================
+   API — carregamento de dados (inalterado, exceto fotos múltiplas)
+   ========================================================================== */
 function formatarData(data) {
   if (!data) return '';
   const valor = String(data).split('T')[0];
   const partes = valor.split('-');
-
-  return partes.length === 3
-    ? `${partes[2]}/${partes[1]}/${partes[0]}`
-    : valor;
+  return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : valor;
 }
 
 function adaptarOcorrencia(o) {
   const categoria = o.category || o.categoria || {};
   const usuario = o.user || o.usuario || {};
   const statusBackend = String(o.status || '').toUpperCase();
+  const fotoUnica = o.foto || o.imagemUrl || null;
 
   return {
     id: Number(o.id),
@@ -93,10 +117,9 @@ function adaptarOcorrencia(o) {
     statusBackend: statusBackend || 'PENDENTE',
     confirmations: Number(o.confirmations ?? o.confirmacoes ?? 0),
     author: usuario.nome || o.author || 'Morador',
-    authorId: usuario.id != null
-      ? String(usuario.id)
-      : String(o.userId ?? o.usuarioId ?? ''),
-    foto: o.foto || o.imagemUrl || null
+    authorId: usuario.id != null ? String(usuario.id) : String(o.userId ?? o.usuarioId ?? ''),
+    foto: fotoUnica,
+    fotos: fotoUnica ? [fotoUnica] : []
   };
 }
 
@@ -111,67 +134,216 @@ async function jsonOpcional(resposta) {
   return texto ? JSON.parse(texto) : null;
 }
 
-async function carregarFotosOcorrencia(ocorrencia) {
-  try {
-    const resposta = await fetch(
-      `${API_BASE}/occurrences/${ocorrencia.id}/images`,
-      { cache: 'no-store' }
-    );
+/* ===================== BLOCO B — carga de dados ===================== */
+function aplicarFotos(o, urls) {
+  if (urls && urls.length) { o.fotos = urls; o.foto = urls[0]; }
+  return o;
+}
 
-    if (!resposta.ok) return ocorrencia;
+// Busca as fotos de UMA ocorrência uma única vez. Falha => null (tenta de novo depois).
+function buscarFotos(id) {
+  if (fotosCache.has(id)) return Promise.resolve(fotosCache.get(id));
 
-    const imagens = await resposta.json();
+  const t = fotosSemResultado.get(id);
+  if (t && Date.now() - t < 60000) return Promise.resolve([]);
 
-    if (Array.isArray(imagens) && imagens.length > 0) {
-      ocorrencia.foto = imagens[0].imageUrl;
+  if (fotosEmCarga.has(id)) return fotosEmCarga.get(id);
+
+  const promessa = (async () => {
+    try {
+      const resposta = await fetch(`${API_BASE}/occurrences/${id}/images`, { cache: 'no-store' });
+      if (!resposta.ok) { fotosSemResultado.set(id, Date.now()); return []; }
+      const imagens = await resposta.json();
+      const urls = Array.isArray(imagens) ? imagens.map(i => i.imageUrl).filter(Boolean) : [];
+      if (urls.length) { fotosCache.set(id, urls); fotosSemResultado.delete(id); }
+      else fotosSemResultado.set(id, Date.now());
+      return urls;
+    } catch (erro) {
+      console.error(`Erro ao carregar fotos da ocorrência ${id}:`, erro);
+      fotosSemResultado.set(id, Date.now());
+      return [];
+    } finally {
+      fotosEmCarga.delete(id);
     }
+  })();
 
-    return ocorrencia;
-  } catch (erro) {
-    console.error(
-      `Erro ao carregar fotos da ocorrência ${ocorrencia.id}:`,
-      erro
-    );
-    return ocorrencia;
+  fotosEmCarga.set(id, promessa);
+  return promessa;
+}
+
+// Mantém o nome e o formato antigos (usado por "Minhas ocorrências" e pela sessão).
+async function carregarFotosOcorrencia(ocorrencia) {
+  if (fotosCache.has(ocorrencia.id)) return aplicarFotos(ocorrencia, fotosCache.get(ocorrencia.id));
+  const urls = await buscarFotos(ocorrencia.id);
+  return aplicarFotos(ocorrencia, urls);
+}
+
+// Coloca as fotos na memória e direto no cartão/galeria, sem redesenhar a tela.
+function aplicarFotosNaTela(id, urls) {
+  [occurrences, myOccurrences].forEach(lista => {
+    const alvo = lista.find(x => x.id === id);
+    if (alvo) aplicarFotos(alvo, urls);
+  });
+
+  const o = getOccurrence(id);
+  if (!o) return;
+
+  document.querySelectorAll('.occ[data-id="' + id + '"] .occ-media').forEach(m => {
+    m.innerHTML = photoFor(o);
+  });
+
+  const rota = parseRoute();
+  if (rota[0] === 'ocorrencia' && Number(rota[1]) === id) {
+    const caixa = document.getElementById('lightbox');
+    if (caixa && caixa.classList.contains('show')) return;
+    const atual = document.querySelector('.det-main')?.firstElementChild;
+    if (atual && (atual.classList.contains('gallery') || atual.classList.contains('detail-media'))) {
+      atual.outerHTML = galleryHtml(o);
+    }
   }
 }
 
-async function carregarOcorrencias(render = true) {
-  try {
-    const resposta = await fetch(`${API_BASE}/occurrences`, {
-      cache: 'no-store'
+function carregarFotoDe(id) {
+  const o = getOccurrence(id);
+  if (!o) return;                       // também evita pedir fotos de ID inexistente
+
+  const emCache = fotosCache.get(id);
+  if (emCache) {
+    if (fotosDe(o).length !== emCache.length) aplicarFotosNaTela(id, emCache);
+    return;
+  }
+  buscarFotos(id).then(urls => { if (urls && urls.length) aplicarFotosNaTela(id, urls); });
+}
+
+
+// Só busca a foto dos cartões que entram na tela (com 200 px de folga).
+function observarCartoes() {
+  const cartoes = document.querySelectorAll('.occ[data-id]');
+  if (!cartoes.length) return;
+
+  if (!('IntersectionObserver' in window)) {
+    cartoes.forEach(c => carregarFotoDe(Number(c.dataset.id)));
+    return;
+  }
+
+  if (fotosObserver) fotosObserver.disconnect();
+  fotosObserver = new IntersectionObserver(entradas => {
+    entradas.forEach(e => {
+      if (!e.isIntersecting) return;
+      fotosObserver.unobserve(e.target);
+      carregarFotoDe(Number(e.target.dataset.id));
     });
+  }, { rootMargin: '200px' });
 
-    if (!resposta.ok) {
-      const detalhe = await resposta.text();
-      throw new Error(`HTTP ${resposta.status}: ${detalhe}`);
+  cartoes.forEach(c => fotosObserver.observe(c));
+}
+
+
+// Carga FORÇADA (inicialização e depois de criar/editar/excluir/mudar status).
+// Se já existe uma consulta em andamento, espera ela terminar antes de buscar de novo.
+async function carregarOcorrencias(render = true) {
+  while (ocorrenciasEmCarga) await ocorrenciasEmCarga.catch(() => {});
+
+  ocorrenciasEmCarga = (async () => {
+    ultimaTentativaOcorrencias = Date.now();
+    try {
+      const resposta = await fetch(`${API_BASE}/occurrences`, { cache: 'no-store' });
+      if (!resposta.ok) {
+        const detalhe = await resposta.text();
+        throw new Error(`HTTP ${resposta.status}: ${detalhe}`);
+      }
+
+      const dados = await jsonOpcional(resposta);
+      occurrences = listaDaResposta(dados)
+        .map(adaptarOcorrencia)
+        .map(o => aplicarFotos(o, fotosCache.get(o.id)));
+
+      
+      if (render) renderView(...parseRoute());
+      return true;
+    } catch (erro) {
+      console.error('Erro ao carregar ocorrências:', erro);
+      return false;
+    } finally {
+      ocorrenciasEmCarga = null;
     }
+  })();
 
-    const dados = await jsonOpcional(resposta);
-    occurrences = await Promise.all(
-  listaDaResposta(dados)
-    .map(adaptarOcorrencia)
-    .map(carregarFotosOcorrencia)
-);
+  return ocorrenciasEmCarga;
+}
 
-    // Busca a quantidade de confirmações de todas as ocorrências.
-    await Promise.all(
-      occurrences.map(async (o) => {
-        const resultado = await carregarConfirmacoes(o.id);
+// Assinatura simples: só repinta a tela se algo visível mudou.
+function assinatura(lista) {
+  return JSON.stringify(lista.map(o => [
+    o.id, o.title, o.description, o.status, o.bairro, o.rua, o.categoria, fotosDe(o).length
+  ]));
+}
 
-        if (resultado) {
-          o.confirmations = resultado.total;
-        }
-      })
-    );
+// Atualiza SÓ se os dados estiverem velhos. Nunca duplica consulta em andamento.
+async function atualizarOcorrenciasSeNecessario(limite = TTL_NAVEGACAO) {
+  if (document.visibilityState !== 'visible') return false;
+  if (ocorrenciasEmCarga) return false;
+  if (Date.now() - ultimaTentativaOcorrencias < limite) return false;
 
-    if (render) renderView(...parseRoute());
+  const antes = assinatura(occurrences);
+  const chave = parseRoute().join('/');
 
-    return true;
-  } catch (erro) {
-    console.error('Erro ao carregar ocorrências:', erro);
-    toast('Não foi possível carregar as ocorrências da API.', 'info');
-    return false;
+  const ok = await carregarOcorrencias(false);
+  if (!ok) return false;
+
+  if (assinatura(occurrences) !== antes && parseRoute().join('/') === chave) repintarTela(false);
+  return true;
+}
+
+// "Minhas ocorrências": mesma ideia, por usuário.
+function marcarMinhasCarregadas() {
+  ultimaCargaMinhas = Date.now();
+  ultimaCargaMinhasUser = state.currentUser ? state.currentUser.id : null;
+}
+
+async function minhasSeNecessario(limite = TTL_NAVEGACAO) {
+  if (!state.currentUser) return false;
+  if (minhasEmCarga) return minhasEmCarga;
+
+  const fresco = ultimaCargaMinhasUser === state.currentUser.id &&
+                 Date.now() - ultimaCargaMinhas < limite;
+  if (fresco) return true;
+
+  minhasEmCarga = carregarMinhasOcorrencias(false).finally(() => { minhasEmCarga = null; });
+  return minhasEmCarga;
+}
+
+
+/* ---------- Repintura pontual (não perde o que o usuário está fazendo) ---------- */
+function agendarRepintura() {
+  clearTimeout(repinturaTimer);
+  repinturaTimer = setTimeout(() => repintarTela(true), 250);
+}
+
+// parcial = true  -> só chegaram fotos novas (no detalhe troca apenas a galeria)
+// parcial = false -> os dados mudaram (redesenha a tela)
+function repintarTela(parcial) {
+  const rota = parseRoute();
+  const pagina = rota[0] || 'home';
+
+  const caixa = document.getElementById('lightbox');
+  if (caixa && caixa.classList.contains('show')) return;
+
+  const ativo = document.activeElement;
+  const digitando = ativo && /^(INPUT|TEXTAREA|SELECT)$/.test(ativo.tagName);
+
+  if (pagina === 'ocorrencias') {
+    renderListGrid();                       // só a grade; filtros e busca continuam como estão
+  } else if (pagina === 'home' || pagina === 'minhas') {
+    if (!digitando) renderView(...rota);
+  } else if (pagina === 'ocorrencia') {
+    const o = getOccurrence(rota[1]);
+    const principal = document.querySelector('.det-main');
+    if (parcial && o && principal && principal.firstElementChild) {
+      principal.firstElementChild.outerHTML = galleryHtml(o);
+    } else if (!parcial) {
+      renderView(...rota);                  // 1 requisição (contagem de confirmações)
+    }
   }
 }
 
@@ -196,20 +368,19 @@ async function carregarMinhasOcorrencias(render = true) {
       const detalhe = await resposta.text();
       console.error('Erro ao carregar minhas ocorrências:', resposta.status, detalhe);
       if (resposta.status === 401) {
-  logout();
-} else if (resposta.status === 403) {
-  toast('Você não tem permissão para acessar esta lista.', 'info');
-} else {
-  toast('Não foi possível carregar suas ocorrências.', 'info');
-}
+        logout();
+      } else if (resposta.status === 403) {
+        toast('Você não tem permissão para acessar esta lista.', 'info');
+      } else {
+        toast('Não foi possível carregar suas ocorrências.', 'info');
+      }
       return false;
     }
 
     myOccurrences = await Promise.all(
-  listaDaResposta(await jsonOpcional(resposta))
-    .map(adaptarOcorrencia)
-    .map(carregarFotosOcorrencia)
-);
+      listaDaResposta(await jsonOpcional(resposta)).map(adaptarOcorrencia).map(o => aplicarFotos(o, fotosCache.get(o.id)))
+    );
+    marcarMinhasCarregadas();
     if (render && parseRoute()[0] === 'minhas') renderView('minhas');
     return true;
   } catch (erro) {
@@ -219,104 +390,126 @@ async function carregarMinhasOcorrencias(render = true) {
   }
 }
 
+
+
 async function restaurarSessao() {
   const token = localStorage.getItem('token');
   const usuarioSalvo = localStorage.getItem('currentUser');
 
-  if (!token || !usuarioSalvo) return;
+  // Não ter uma sessão salva não deve bloquear a página pública.
+  if (!token || !usuarioSalvo) {
+    state.currentUser = null;
+    myOccurrences = [];
+    return true;
+  }
 
   try {
     const usuario = JSON.parse(usuarioSalvo);
-    if (!usuario || !usuario.name) throw new Error('Perfil local inválido.');
 
-    const resposta = await fetch(`${API_BASE}/occurrences/mine`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!resposta.ok) {
-      if (resposta.status === 401) {
-  localStorage.removeItem('token');
-  localStorage.removeItem('currentUser');
-  state.currentUser = null;
-}
-      return;
+    if (!usuario || !(usuario.name || usuario.nome || usuario.email)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentUser');
+      state.currentUser = null;
+      myOccurrences = [];
+      return true;
     }
 
-    myOccurrences = listaDaResposta(await jsonOpcional(resposta)).map(adaptarOcorrencia);
     state.currentUser = {
       ...usuario,
       id: usuario.id == null ? '' : String(usuario.id),
       name: String(usuario.name || usuario.nome || usuario.email || 'Morador')
     };
-  } catch (erro) {
-    console.error('Não foi possível restaurar a sessão:', erro);
-  }
-}
 
+    const resposta = await fetch(`${API_BASE}/occurrences/mine`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: 'no-store'
+    });
 
-let categoriasAPI = [];
+    if (resposta.status === 401) {
+      // Token inválido ou expirado: encerra a sessão local.
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentUser');
 
-async function carregarCategorias() {
-  try {
-    const resposta = await fetch(`${API_BASE}/categories`);
+      state.currentUser = null;
+      myOccurrences = [];
+      return true;
+    }
+
+    if (resposta.status === 403) {
+      // Sem permissão para a lista pessoal: mantém o site público funcionando.
+      console.warn('A API negou acesso às ocorrências pessoais (403).');
+      myOccurrences = [];
+      return true;
+    }
 
     if (!resposta.ok) {
-      throw new Error(`Erro HTTP ${resposta.status}`);
+      console.warn(
+        `Não foi possível carregar as ocorrências pessoais: HTTP ${resposta.status}`
+      );
+      myOccurrences = [];
+      return true;
     }
 
     const dados = await jsonOpcional(resposta);
 
-    categoriasAPI = (Array.isArray(dados) ? dados : dados?.content || [])
-      .map(c => ({
-        id: c.id,
-        nome: c.nome
-      }));
+    myOccurrences = await Promise.all(
+      listaDaResposta(dados)
+        .map(adaptarOcorrencia)
+        .map(o => aplicarFotos(o, fotosCache.get(o.id)))
+    );
 
-    return categoriasAPI;
+    marcarMinhasCarregadas();
+
+    return true;
   } catch (erro) {
-    console.error('Erro ao carregar categorias:', erro);
-    toast('Não foi possível carregar as categorias.', 'info');
-    return [];
+    console.error('Falha ao restaurar a sessão:', erro);
+    myOccurrences = [];
+
+    // Uma falha de sessão não deve impedir a inicialização pública.
+    return true;
   }
 }
 
 
 
+async function carregarCategorias() {
+  try {
+    const resposta = await fetch(`${API_BASE}/categories`);
+    if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
+
+    const dados = await jsonOpcional(resposta);
+    categoriasAPI = (Array.isArray(dados) ? dados : dados?.content || [])
+      .map(c => ({ id: c.id, nome: c.nome }));
+    return categoriasAPI;
+  } catch (erro) {
+    console.error('Erro ao carregar categorias:', erro);
+    return null;
+  }
+}
 
 async function carregarConfirmacoes(id) {
   const occurrenceId = Number(id);
-
-  if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) {
-    return null;
-  }
+  if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) return null;
 
   try {
     const resposta = await fetch(
       `${API_BASE}/occurrences/${occurrenceId}/confirmations/count`,
       { cache: 'no-store' }
     );
-
-    if (!resposta.ok) {
-      throw new Error(`HTTP ${resposta.status}`);
-    }
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
 
     const dados = await jsonOpcional(resposta);
-
     confirmationState[occurrenceId] = {
       ...confirmationState[occurrenceId],
       total: Number(dados?.totalConfirmations ?? 0)
     };
 
-    const elemento = document.getElementById(
-      `confirmation-count-${occurrenceId}`
-    );
-
+    const elemento = document.getElementById(`confirmation-count-${occurrenceId}`);
     if (elemento) {
-      elemento.innerHTML =
-        icon('check-circle', 16) + ' ' +
-        esc(confirmText(confirmationState[occurrenceId].total));
+      elemento.innerHTML = icon('check-circle', 16) + ' ' + esc(confirmText(confirmationState[occurrenceId].total));
     }
-
     return confirmationState[occurrenceId];
   } catch (erro) {
     console.error('Erro ao carregar confirmações:', erro);
@@ -324,44 +517,33 @@ async function carregarConfirmacoes(id) {
   }
 }
 
-
 async function confirmar(id) {
   const occurrenceId = Number(id);
   const token = localStorage.getItem('token');
 
-  if (!state.currentUser || !token) {
-    return solicitarLoginParaConfirmar(occurrenceId);
-  }
+  if (!state.currentUser || !token) return solicitarLoginParaConfirmar(occurrenceId);
 
   try {
-    const resposta = await fetch(
-      `${API_BASE}/occurrences/${occurrenceId}/confirmations`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
+    const resposta = await fetch(`${API_BASE}/occurrences/${occurrenceId}/confirmations`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
     if (resposta.status === 401) {
-  toast('Sua sessão expirou. Entre novamente.', 'info');
-  logout();
-  return false;
-}
-
-if (resposta.status === 403) {
-  toast('Você já confirmou esta ocorrência.', 'info');
-  return false;
-}
-
+      toast('Sua sessão expirou. Entre novamente.', 'info');
+      logout();
+      return false;
+    }
+    if (resposta.status === 403) {
+      toast('Você já confirmou esta ocorrência.', 'info');
+      return false;
+    }
     if (resposta.status === 409) {
       toast('Você já confirmou esta ocorrência.', 'info');
       await carregarConfirmacoes(occurrenceId);
-      renderView('ocorrencia', occurrenceId);
+      renderView('ocorrencia', occurrenceId, true);
       return false;
     }
-
     if (!resposta.ok) {
       const detalhe = await resposta.text();
       console.error('Erro ao confirmar ocorrência:', resposta.status, detalhe);
@@ -371,7 +553,7 @@ if (resposta.status === 403) {
 
     await carregarConfirmacoes(occurrenceId);
     toast('Ocorrência confirmada com sucesso!');
-    renderView('ocorrencia', occurrenceId);
+    renderView('ocorrencia', occurrenceId, true);
     return true;
   } catch (erro) {
     console.error('Falha ao confirmar ocorrência:', erro);
@@ -380,20 +562,18 @@ if (resposta.status === 403) {
   }
 }
 
-const BAIRROS = ['Cidade Nova','Flores','Parque 10','Adrianópolis'];
 
-/* ---------- Helpers ---------- */
+/* ==========================================================================
+   Helpers
+   ========================================================================== */
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function today(){ return new Date().toLocaleDateString('pt-BR'); }
 function confirmText(n){ return n + ' ' + (n === 1 ? 'confirmação' : 'confirmações'); }
-function pluralMoradores(n){ return n + ' ' + (n === 1 ? 'morador confirmou' : 'moradores confirmaram') + ' esta ocorrência.'; }
-function truncate(s, n=120){ return s.length > n ? s.slice(0, n).trim() + '…' : s; }
-function slug(s){ return String(s).toLowerCase().normalize('NFD').replace(/[^\w]/g,''); }
+function truncate(s, n = 120){ s = String(s || ''); return s.length > n ? s.slice(0, n).trim() + '…' : s; }
+function slug(s){ return String(s).toLowerCase().normalize('NFD').replace(/[^\w]/g, ''); }
 
 function go(path){ location.hash = path; }
 
 function savePostAuthRoute(path){
-  // Só preserva uma rota interna de detalhes; não aceita URLs externas.
   const match = String(path || '').match(/^#?\/?ocorrencia\/(\d+)$/);
   if (match) sessionStorage.setItem('meuBairro:returnTo', '/ocorrencia/' + match[1]);
   else sessionStorage.removeItem('meuBairro:returnTo');
@@ -405,7 +585,7 @@ function takePostAuthRoute(){
   return path && /^\/ocorrencia\/\d+$/.test(path) ? path : '/';
 }
 
-function toast(msg, type='success'){
+function toast(msg, type = 'success'){
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + type;
@@ -417,7 +597,7 @@ function toggleMenu(){
   const header = document.getElementById('header');
   const button = header.querySelector('.menu-btn');
   const isOpen = header.classList.toggle('open');
-  if(button) button.setAttribute('aria-expanded', String(isOpen));
+  if (button) button.setAttribute('aria-expanded', String(isOpen));
 }
 
 function closeMenu(){
@@ -426,145 +606,254 @@ function closeMenu(){
 
 function getOccurrence(id){
   const numericId = Number(id);
-  return occurrences.find(o => o.id === numericId) ||
-    myOccurrences.find(o => o.id === numericId);
+  return occurrences.find(o => o.id === numericId) || myOccurrences.find(o => o.id === numericId);
 }
 
 function isMyOccurrence(id){
   return Boolean(state.currentUser && myOccurrences.some(o => Number(o.id) === Number(id)));
 }
 
-/* ---------- Foto (placeholder ou imagem real) ---------- */
-function photoFor(o, size){
-  const s = size || 34;
-  if(o.foto) return '<img src="' + o.foto + '" alt="' + esc(o.title) + '">';
-  const c = CATEGORIES[o.categoria] || CATEGORIES['Outro'];
-  return '<div class="photo-ph" style="background:' + c.grad + '">' + icon(c.icon, s) + '<span>' + esc(o.categoria) + '</span></div>';
+function requireAuth(){
+  if (!state.currentUser || !localStorage.getItem('token')) {
+    toast('Faça login para continuar.', 'info');
+    go('/login');
+    return false;
+  }
+  return true;
 }
 
-/* ---------- Badges ---------- */
+// Botão com estado "carregando" (a API no Render pode demorar)
+function botaoOcupado(form, ocupado, textoOcupado){
+  const b = form && form.querySelector('button[type="submit"]');
+  if (!b) return;
+  if (ocupado) {
+    b.dataset.txt = b.innerHTML;
+    b.disabled = true;
+    b.textContent = textoOcupado;
+  } else {
+    b.disabled = false;
+    if (b.dataset.txt) b.innerHTML = b.dataset.txt;
+  }
+}
+
+
+/* ==========================================================================
+   Fotos, galeria e lightbox
+   ========================================================================== */
+function fotosDe(o){
+  if (Array.isArray(o.fotos) && o.fotos.length) return o.fotos;
+  return o.foto ? [o.foto] : [];
+}
+
+function photoFor(o, size){
+  const s = size || 34;
+  const fotos = fotosDe(o);
+  if (fotos.length) {
+    const contador = (!size && fotos.length > 1)
+      ? '<span class="photo-count">' + icon('image', 13) + ' ' + fotos.length + '</span>' : '';
+    return '<img src="' + esc(fotos[0]) + '" alt="' + esc(o.title) + '" loading="lazy">' + contador;
+  }
+  const c = CATEGORIES[o.categoria] || CATEGORIES['Outro'];
+  return '<div class="photo-ph">' + icon(c.icon, s) + '<span>' + esc(o.categoria) + '</span></div>';
+}
+
+function galleryHtml(o){
+  const fotos = fotosDe(o);
+  if (!fotos.length) return '<div class="detail-media">' + photoFor(o, 72) + '</div>';
+
+  galeriaIdx = 0;
+  const thumbs = fotos.length > 1
+    ? '<div class="gallery-thumbs">' + fotos.map((f, i) =>
+        '<button type="button" class="gallery-thumb' + (i === 0 ? ' active' : '') + '" onclick="selecionarFoto(' + i + ')" aria-label="Ver foto ' + (i + 1) + '">' +
+        '<img src="' + esc(f) + '" alt="Foto ' + (i + 1) + ' de ' + esc(o.title) + '"></button>').join('') + '</div>'
+    : '';
+
+  return '<div class="gallery" data-id="' + o.id + '">' +
+    '<button type="button" class="gallery-main" onclick="abrirLightbox(' + o.id + ')" aria-label="Ampliar foto">' +
+      '<img src="' + esc(fotos[0]) + '" alt="' + esc(o.title) + '">' +
+      (fotos.length > 1 ? '<span class="gallery-counter">1 / ' + fotos.length + '</span>' : '') +
+      '<span class="gallery-zoom">' + icon('search', 14) + ' Ampliar</span>' +
+    '</button>' + thumbs + '</div>';
+}
+
+function selecionarFoto(i){
+  const g = document.querySelector('.gallery');
+  if (!g) return;
+  const fotos = fotosDe(getOccurrence(g.dataset.id));
+  galeriaIdx = i;
+  g.querySelector('.gallery-main img').src = fotos[i];
+  g.querySelectorAll('.gallery-thumb').forEach((t, k) => t.classList.toggle('active', k === i));
+  const c = g.querySelector('.gallery-counter');
+  if (c) c.textContent = (i + 1) + ' / ' + fotos.length;
+}
+
+function abrirLightbox(id, i){
+  const o = getOccurrence(id);
+  const fotos = o ? fotosDe(o) : [];
+  if (!fotos.length) return;
+
+  lb = { fotos, i: i == null ? galeriaIdx : i, titulo: o.title };
+  let el = document.getElementById('lightbox');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lightbox';
+    el.className = 'lightbox';
+    el.addEventListener('click', e => { if (e.target === el) fecharLightbox(); });
+    document.body.appendChild(el);
+  }
+  desenharLightbox();
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function desenharLightbox(){
+  const el = document.getElementById('lightbox');
+  const n = lb.fotos.length;
+  el.innerHTML =
+    '<button type="button" class="lb-close" onclick="fecharLightbox()" aria-label="Fechar">' + icon('x', 22) + '</button>' +
+    (n > 1
+      ? '<button type="button" class="lb-nav lb-prev" onclick="moverLightbox(-1)" aria-label="Anterior">' + icon('arrow-left', 22) + '</button>' +
+        '<button type="button" class="lb-nav lb-next" onclick="moverLightbox(1)" aria-label="Próxima">' + icon('arrow-right', 22) + '</button>'
+      : '') +
+    '<figure class="lb-fig"><div class="lb-stage"><img src="' + esc(lb.fotos[lb.i]) + '" alt="' + esc(lb.titulo) + '" onclick="zoomLightbox(event)"></div>' +
+    '<figcaption>' + esc(lb.titulo) + (n > 1 ? ' · ' + (lb.i + 1) + '/' + n : '') + ' — clique na foto para dar zoom</figcaption></figure>';
+}
+
+function moverLightbox(d){
+  const n = lb.fotos.length;
+  lb.i = (lb.i + d + n) % n;
+  desenharLightbox();
+}
+
+function zoomLightbox(e){
+  const img = e.currentTarget;
+  const r = img.getBoundingClientRect();
+  img.style.transformOrigin = ((e.clientX - r.left) / r.width * 100) + '% ' + ((e.clientY - r.top) / r.height * 100) + '%';
+  img.classList.toggle('zoomed');
+}
+
+function fecharLightbox(){
+  const el = document.getElementById('lightbox');
+  if (el) el.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+
+/* ==========================================================================
+   Selos e card
+   ========================================================================== */
 function catBadge(cat){
   const c = CATEGORIES[cat] || CATEGORIES['Outro'];
   return '<span class="badge cat-' + c.slug + '">' + icon(c.icon, 14) + ' ' + esc(cat) + '</span>';
 }
+
 function statusBadge(status){
-  const s = slug(status);
-  return '<span class="badge status-' + s + '">' + (status === 'Resolvido' ? icon('check-circle',14) + ' ' : '') + esc(status) + '</span>';
+  return '<span class="badge status-' + slug(status) + '">' +
+    (status === 'Resolvido' ? icon('check-circle', 14) + ' ' : '') + esc(status) + '</span>';
 }
 
-/* ---------- Card de ocorrência ---------- */
-
-function occurrenceCard(o) {
-  const total = confirmationState[o.id]?.total ?? o.confirmations ?? 0;
-
-  return '<article class="card">' +
-    '<div class="card-media" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
-      photoFor(o) +
+function occCard(o, acoes){
+  const aberto = o.status === 'Aberto';
+  return '<article class="occ' + (acoes ? ' occ--actions' : '') + '" data-id="' + o.id + '">' +
+    '<div class="occ-media">' + photoFor(o) + '</div>' +
+    '<div class="occ-main">' +
+      '<h3 class="occ-title"><a href="#/ocorrencia/' + o.id + '">' + esc(o.title) + '</a></h3>' +
+      '<p class="occ-desc">' + esc(truncate(o.description, 110)) + '</p>' +
     '</div>' +
-    '<div class="card-body">' +
-      '<div class="card-top">' + catBadge(o.categoria) + statusBadge(o.status) + '</div>' +
-      '<h3 class="card-title" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
-        esc(o.title) +
-      '</h3>' +
-      '<p class="card-loc">' + icon('pin', 15) + ' ' +
-        esc(o.bairro) + ' • ' + esc(o.rua) +
-      '</p>' +
-      '<p class="card-desc">' + esc(truncate(o.description)) + '</p>' +
-      '<p class="muted" id="confirmation-count-' + o.id + '">' +
-        icon('check-circle', 16) + ' ' + esc(confirmText(total)) +
-      '</p>' +
-      '<div class="card-footer">' +
-        '<span>' + icon('clock', 15) + ' ' + esc(o.data) + '</span>' +
-      '</div>' +
-      '<button class="btn btn-outline btn-block" onclick="go(\'/ocorrencia/' + o.id + '\')">' +
-        'Ver detalhes' +
-      '</button>' +
+    '<div class="occ-foot">' +
+      '<span class="occ-loc">' + icon('pin', 16) + '<b>' + esc(o.bairro) + '</b></span>' +
+      '<span class="occ-date">' + icon('clock', 15) + esc(o.data) + '</span>' +
+      '<span class="occ-status ' + (aberto ? 'is-open' : 'is-done') + '">' + esc(o.status) + '</span>' +
     '</div>' +
+    (acoes ? '<div class="occ-actions">' + acoes + '</div>' : '') +
   '</article>';
 }
 
-/* ============================================================
-   TELAS
-   ============================================================ */
+function occurrenceCard(o){ return occCard(o); }
 
-/* ---------- Header ---------- */
+
+/* ==========================================================================
+   Cabeçalho
+   ========================================================================== */
 function renderHeader(){
   const h = document.getElementById('header');
   const u = state.currentUser;
-  const parts = parseRoute();
-  const name = parts[0] || 'home';
+  const name = parseRoute()[0] || 'home';
 
-  const link = (label, route, key) =>
-    '<a href="#' + route + '" class="nav-link ' + ((name === key || (key==='ocorrencias' && name==='ocorrencia')) ? 'active' : '') + '">' + label + '</a>';
+  const link = (label, route, key, ico) =>
+    '<a href="#' + route + '" class="nav-link ' +
+    ((name === key || (key === 'ocorrencias' && name === 'ocorrencia')) ? 'active' : '') + '">' +
+    icon(ico, 18) + label + '</a>';
 
-  let navLinks = '';
-  navLinks += link('Início', '/', 'home');
-  navLinks += link('Ocorrências', '/ocorrencias', 'ocorrencias');
-  if(u) navLinks += link('Minhas ocorrências', '/minhas', 'minhas');
+  let navLinks = link('Início', '/', 'home', 'home') +
+                 link('Ocorrências', '/ocorrencias', 'ocorrencias', 'search');
+  if (u) navLinks += link('Minhas ocorrências', '/minhas', 'minhas', 'user');
 
-  let auth = '';
-  if(!u){
-    auth = '<button class="btn btn-ghost" onclick="go(\'/login\')">Entrar</button>' +
-           '<button class="btn btn-primary" onclick="go(\'/registrar\')">' + icon('plus',16) + ' Registrar ocorrência</button>';
-  } else {
-    auth = '<button class="btn btn-primary" onclick="go(\'/registrar\')">' + icon('plus',16) + ' Registrar ocorrência</button>' +
-           '<span class="user-chip"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span>Olá, ' + esc(u.name) + '</span>' +
-           '<button class="btn btn-ghost" onclick="logout()">' + icon('logout',16) + ' Sair</button>';
-  }
+  const btnRegistrar = '<button class="btn btn-primary" onclick="go(\'/registrar\')">' + icon('plus', 16) + ' Registrar ocorrência</button>';
+  const auth = !u
+    ? '<button class="btn btn-ghost" onclick="go(\'/login\')">Entrar</button>' + btnRegistrar
+    : btnRegistrar +
+      '<span class="user-chip"><span class="avatar">' + esc(u.name.charAt(0).toUpperCase()) + '</span>' +
+      '<span class="user-name">Olá, ' + esc(u.name) + '</span></span>' +
+      '<button class="btn btn-ghost" onclick="logout()">' + icon('logout', 16) + ' Sair</button>';
 
   h.className = '';
   h.innerHTML =
     '<div class="header-inner">' +
-      '<a class="logo" href="#/" onclick="closeMenu()">' + icon('pin',22) + ' Meu Bairro</a>' +
+      '<a class="logo" href="#/" onclick="closeMenu()"><span class="logo-mark">' + icon('pin', 24) + '</span><span>Meu Bairro</span></a>' +
       '<nav class="nav" onclick="closeMenu()">' + navLinks + '</nav>' +
       '<div class="auth-actions">' + auth + '</div>' +
-      '<button class="menu-btn" onclick="toggleMenu()" aria-label="Abrir menu" aria-expanded="false">' + icon('menu',22) + '</button>' +
+      '<button class="menu-btn" onclick="toggleMenu()" aria-label="Abrir menu" aria-expanded="false">' + icon('menu', 22) + '</button>' +
     '</div>';
 }
 
-/* ---------- Home ---------- */
+
+/* ==========================================================================
+   Telas: Home, Lista, Detalhes
+   ========================================================================== */
 function homeView(){
-  const recent = occurrences.slice().sort((a,b) => b.id - a.id).slice(0,3);
+  const recentes = occurrences.slice().sort((a, b) => b.id - a.id).slice(0, HOME_RECENTES);
   return (
     '<div class="hero">' +
       '<div class="hero-inner container">' +
-        '<span class="kicker">' + icon('pin',14) + ' Comunidade • Manaus</span>' +
-        '<h1>Problemas do seu bairro, visíveis para a comunidade.</h1>' +
-        '<p>Registre problemas urbanos, encontre ocorrências próximas ao seu bairro e ajude a comunidade a identificar o que precisa de atenção.</p>' +
+        '<h1>Problemas do seu bairro, visíveis para a comunidade</h1>' +
+        '<p>Registre problemas urbanos e encontre ocorrências próximas ao seu bairro.</p>' +
         '<div class="hero-actions">' +
-          '<button class="btn btn-primary btn-lg" onclick="go(\'/ocorrencias\')">' + icon('eye',18) + ' Ver ocorrências</button>' +
-          '<button class="btn btn-ghost btn-lg" onclick="go(\'/registrar\')">' + icon('plus',18) + ' Registrar ocorrência</button>' +
+          '<button class="btn btn-primary btn-lg" onclick="go(\'/ocorrencias\')">' + icon('eye', 18) + ' Ver ocorrências</button>' +
+          '<button class="btn btn-ghost btn-lg" onclick="go(\'/registrar\')">' + icon('plus', 18) + ' Registrar ocorrência</button>' +
         '</div>' +
       '</div>' +
     '</div>' +
 
-    '<section class="container">' +
-      '<div class="grid">' + recent.map(occurrenceCard).join('') + '</div>' +
+    '<section class="container home-recent">' +
+      '<div class="section-head"><h2>Ocorrências recentes</h2>' +
+        '<a class="link-arrow" href="#/ocorrencias">Ver todas ' + icon('arrow-right', 16) + '</a></div>' +
+      '<div class="grid">' + recentes.map(occurrenceCard).join('') + '</div>' +
     '</section>' +
 
-    '<section class="container" style="padding-top:0">' +
+    '<section class="container home-steps">' +
       '<div class="section-head"><h2>Como funciona</h2></div>' +
       '<div class="steps">' +
-        '<div class="step"><div class="ico">' + icon('plus',24) + '</div><h3>1. Registre</h3><p>Crie uma ocorrência informando o bairro, a rua e o problema encontrado.</p></div>' +
-        '<div class="step"><div class="ico">' + icon('check',24) + '</div><h3>2. Confirme</h3><p>Se você viu o mesmo problema, confirme para dar mais visibilidade.</p></div>' +
-        '<div class="step"><div class="ico">' + icon('check-circle',24) + '</div><h3>3. Acompanhe</h3><p>Acompanhe o status e marque como resolvido quando o problema for atendido.</p></div>' +
+        '<div class="step"><div class="ico">' + icon('plus', 24) + '</div><h3>1. Registre</h3><p>Crie uma ocorrência informando o bairro, a rua e o problema encontrado.</p></div>' +
+        '<div class="step"><div class="ico">' + icon('check', 24) + '</div><h3>2. Confirme</h3><p>Se você viu o mesmo problema, confirme para dar mais visibilidade.</p></div>' +
+        '<div class="step"><div class="ico">' + icon('check-circle', 24) + '</div><h3>3. Acompanhe</h3><p>Acompanhe o status e marque como resolvido quando o problema for atendido.</p></div>' +
       '</div>' +
     '</section>'
   );
 }
 
-/* ---------- Lista de ocorrências ---------- */
 function listView(){
-  const bairroOpts = BAIRROS.map(b => '<option value="' + esc(b) + '"' + (state.filters.bairro===b?' selected':'') + '>' + esc(b) + '</option>').join('');
-  const catOpts = categoriasAPI.map(c => '<option value="' + esc(c.nome) + '"' + (state.filters.categoria===c.nome?' selected':'') + '>' + esc(c.nome) + '</option>').join('');
-  const statusOpts = ['','Aberto','Resolvido'].map(s =>
-    '<option value="' + s + '"' + (state.filters.status===s?' selected':'') + '>' + (s === '' ? 'Todos' : s) + '</option>').join('');
+  const f = state.filters;
+  const bairroOpts = BAIRROS.map(b => '<option value="' + esc(b) + '"' + (f.bairro === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('');
+  const catOpts = categoriasAPI.map(c => '<option value="' + esc(c.nome) + '"' + (f.categoria === c.nome ? ' selected' : '') + '>' + esc(c.nome) + '</option>').join('');
+  const statusOpts = ['', 'Aberto', 'Resolvido'].map(s =>
+    '<option value="' + s + '"' + (f.status === s ? ' selected' : '') + '>' + (s === '' ? 'Todos os status' : s) + '</option>').join('');
 
   return (
     '<section style="padding-top:32px">' +
       '<div class="section-head"><h1>Ocorrências</h1></div>' +
       '<div class="filters">' +
-        '<input class="search" id="f-q" type="text" placeholder="Pesquisar ocorrência…" value="' + esc(state.filters.q) + '" oninput="applyFilters()">' +
+        '<input class="search" id="f-q" type="text" placeholder="Pesquisar ocorrência…" value="' + esc(f.q) + '" oninput="applyFilters()">' +
         '<select id="f-bairro" onchange="applyFilters()"><option value="">Todos os bairros</option>' + bairroOpts + '</select>' +
         '<select id="f-categoria" onchange="applyFilters()"><option value="">Todas as categorias</option>' + catOpts + '</select>' +
         '<select id="f-status" onchange="applyFilters()">' + statusOpts + '</select>' +
@@ -585,115 +874,113 @@ function applyFilters(){
 }
 
 function clearFilters(){
-  state.filters = { q:'', bairro:'', categoria:'', status:'' };
-  document.getElementById('f-q').value = '';
-  document.getElementById('f-bairro').value = '';
-  document.getElementById('f-categoria').value = '';
-  document.getElementById('f-status').value = '';
+  state.filters = { q: '', bairro: '', categoria: '', status: '' };
+  ['f-q', 'f-bairro', 'f-categoria', 'f-status'].forEach(id => { document.getElementById(id).value = ''; });
   renderListGrid();
 }
 
 function renderListGrid(){
   const f = state.filters;
-  let list = occurrences.slice().sort((a,b) => b.id - a.id);
-  if(f.q){
+  let list = occurrences.slice().sort((a, b) => b.id - a.id);
+
+  if (f.q) {
     list = list.filter(o =>
       o.title.toLowerCase().includes(f.q) ||
       o.description.toLowerCase().includes(f.q) ||
       o.rua.toLowerCase().includes(f.q) ||
-      o.bairro.toLowerCase().includes(f.q)
-    );
+      o.bairro.toLowerCase().includes(f.q));
   }
-  if(f.bairro) list = list.filter(o => o.bairro === f.bairro);
-  if(f.categoria) list = list.filter(o => o.categoria === f.categoria);
-  if(f.status) list = list.filter(o => o.status === f.status);
+  if (f.bairro) list = list.filter(o => o.bairro === f.bairro);
+  if (f.categoria) list = list.filter(o => o.categoria === f.categoria);
+  if (f.status) list = list.filter(o => o.status === f.status);
 
-  document.getElementById('result-count').textContent = list.length + (list.length === 1 ? ' ocorrência encontrada' : ' ocorrências encontradas');
+  document.getElementById('result-count').textContent =
+    list.length + (list.length === 1 ? ' ocorrência encontrada' : ' ocorrências encontradas');
 
-  const grid = document.getElementById('list-grid');
-  if(list.length === 0){
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">' + icon('search',40) +
-      '<h3>Nenhuma ocorrência encontrada</h3><p>Tente ajustar os filtros de busca.</p></div>';
-  } else {
-    grid.innerHTML = list.map(occurrenceCard).join('');
-  }
+  document.getElementById('list-grid').innerHTML = list.length === 0
+    ? '<div class="empty" style="grid-column:1/-1">' + icon('search', 40) +
+      '<h3>Nenhuma ocorrência encontrada</h3><p>Tente ajustar os filtros de busca.</p></div>'
+    : list.map(occurrenceCard).join('');
+    observarCartoes();
+
 }
 
-/* ---------- Detalhes ---------- */
 function detailView(id){
   const o = getOccurrence(id);
-  if(!o){
-    return '<section style="padding-top:40px"><div class="empty">' + icon('outro',40) +
+  if (!o) {
+    return '<section style="padding-top:40px"><div class="empty">' + icon('outro', 40) +
       '<h3>Ocorrência não encontrada</h3><p>Esta ocorrência não existe ou foi removida.</p>' +
       '<button class="btn btn-primary" onclick="go(\'/ocorrencias\')">Ver ocorrências</button></div></section>';
   }
 
   const isAuthor = isMyOccurrence(o.id);
   const autenticado = Boolean(state.currentUser && localStorage.getItem('token'));
-  
-const confirmation = confirmationState[o.id];
-const totalConfirmacoes = confirmation?.total ?? o.confirmations ?? 0;
+  const total = confirmationState[o.id]?.total ?? o.confirmations ?? 0;
 
-const confirmArea =
-  '<div class="confirm-area" style="margin-top:16px">' +
-    '<p class="muted" id="confirmation-count-' + o.id + '" style="margin-bottom:10px">' +
-  icon('check-circle', 16) + ' ' +
-  esc(confirmText(totalConfirmacoes)) +
-'</p>' +
-    (autenticado
-      ? '<button class="btn btn-outline" onclick="confirmar(' + o.id + ')">' +
-          icon('check-circle', 16) + ' Confirmar ocorrência' +
-        '</button>'
-      : '<button class="btn btn-outline" onclick="solicitarLoginParaConfirmar(' + o.id + ')">' +
-          icon('check-circle', 16) + ' Entrar para confirmar' +
-        '</button>') +
-  '</div>';
+  const confirmBox =
+    '<div class="det-card det-ask">' +
+      '<h3>Você também viu isso?</h3>' +
+      '<p class="muted">Confirmar ajuda a dar visibilidade ao problema.</p>' +
+      '<p class="det-count" id="confirmation-count-' + o.id + '">' + icon('check-circle', 16) + ' ' + esc(confirmText(total)) + '</p>' +
+      (autenticado
+        ? '<button class="btn btn-outline btn-block" onclick="confirmar(' + o.id + ')">' + icon('check-circle', 16) + ' Confirmar ocorrência</button>'
+        : '<button class="btn btn-outline btn-block" onclick="solicitarLoginParaConfirmar(' + o.id + ')">Entrar para confirmar</button>') +
+    '</div>';
 
-
-  /* Área do autor (resolver/reabrir/excluir) */
   let ownerArea = '';
-  if(isAuthor){
-    let statusBtn;
-    if(o.status === 'Aberto'){
-      statusBtn = '<button class="btn btn-outline" onclick="resolver(' + o.id + ', true)">' + icon('check-circle',16) + ' Marcar como resolvida</button>';
-    } else {
-      statusBtn = '<button class="btn btn-outline" onclick="reabrir(' + o.id + ', true)">' + icon('rotate-ccw',16) + ' Reabrir ocorrência</button>';
-    }
+  if (isAuthor) {
+    const statusBtn = o.status === 'Aberto'
+      ? '<button class="btn btn-outline btn-block" onclick="resolver(' + o.id + ', true)">' + icon('check-circle', 16) + ' Marcar como resolvida</button>'
+      : '<button class="btn btn-outline btn-block" onclick="reabrir(' + o.id + ', true)">' + icon('rotate-ccw', 16) + ' Reabrir ocorrência</button>';
     ownerArea =
-      '<div class="owner-box">' +
-        '<h4>' + icon('user',18) + ' Você é o autor desta ocorrência</h4>' +
-        '<div class="action-row">' +
+      '<div class="det-card det-owner">' +
+        '<h3>Sua ocorrência</h3>' +
+        '<div class="det-actions">' +
           statusBtn +
-          '<button class="btn btn-outline" onclick="go(\'/editar/' + o.id + '\')">' + icon('edit',16) + ' Editar</button>' +
-          '<button class="btn btn-danger-outline" onclick="pedirExclusao(' + o.id + ')">' + icon('trash',16) + ' Excluir ocorrência</button>' +
+          '<button class="btn btn-outline btn-block" onclick="go(\'/editar/' + o.id + '\')">' + icon('edit', 16) + ' Editar</button>' +
+          '<button class="btn btn-danger-outline btn-block" onclick="pedirExclusao(' + o.id + ')">' + icon('trash', 16) + ' Excluir</button>' +
         '</div>' +
       '</div>';
   }
 
   return (
-    '<div class="detail-wrap" style="padding-top:32px">' +
-      '<a class="back-link" href="#/ocorrencias">' + icon('arrow-left',16) + ' Voltar para ocorrências</a>' +
-      '<div class="detail-media">' + photoFor(o, 72) + '</div>' +
-      '<div class="detail-card">' +
+    '<div class="detail-wrap" style="padding-top:24px">' +
+      '<a class="back-link" href="#/ocorrencias">' + icon('arrow-left', 16) + ' Voltar para ocorrências</a>' +
+
+      '<div class="det-head">' +
         '<div class="detail-badges">' + catBadge(o.categoria) + statusBadge(o.status) + '</div>' +
-        '<h1 class="detail-title">' + esc(o.title) + '</h1>' +
-        '<div class="info-grid">' +
-          '<div class="info-item"><div class="label">' + icon('pin',13) + ' Bairro</div><div class="value">' + esc(o.bairro) + '</div></div>' +
-          '<div class="info-item"><div class="label">' + icon('pin',13) + ' Rua</div><div class="value">' + esc(o.rua) + '</div></div>' +
-          '<div class="info-item"><div class="label">' + icon('clock',13) + ' Registrado em</div><div class="value">' + esc(o.data) + '</div></div>' +
-          '<div class="info-item"><div class="label">' + icon('check-circle',13) + ' Status</div><div class="value">' + esc(o.status) + '</div></div>' +
+        '<h1 class="det-title">' + esc(o.title) + '</h1>' +
+        '<p class="det-addr">' + icon('pin', 16) + ' ' + esc(o.rua) + ', ' + esc(o.bairro) + '</p>' +
+      '</div>' +
+
+      '<div class="det-layout">' +
+        '<div class="det-main">' +
+          galleryHtml(o) +
+          '<h2 class="det-sub">Descrição</h2>' +
+          '<p class="detail-desc">' + esc(o.description) + '</p>' +
         '</div>' +
-        '<div class="detail-desc">' + esc(o.description) + '</div>' +
-
-        confirmArea +
-        ownerArea +
-
+        '<aside class="det-side">' +
+          '<div class="det-card">' +
+            '<h3>Informações</h3>' +
+            '<dl class="det-list">' +
+              '<div><dt>Bairro</dt><dd>' + esc(o.bairro) + '</dd></div>' +
+              '<div><dt>Rua</dt><dd>' + esc(o.rua) + '</dd></div>' +
+              '<div><dt>Registrada em</dt><dd>' + esc(o.data) + '</dd></div>' +
+              '<div><dt>Situação</dt><dd>' + esc(o.status) + '</dd></div>' +
+            '</dl>' +
+          '</div>' +
+          confirmBox +
+          ownerArea +
+        '</aside>' +
       '</div>' +
     '</div>'
   );
 }
 
-/* ---------- Ações de ocorrência ---------- */
+
+/* ==========================================================================
+   Ações: login p/ confirmar, status, exclusão
+   ========================================================================== */
 function solicitarLoginParaConfirmar(id){
   const occurrenceId = Number(id);
   if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) return false;
@@ -703,7 +990,6 @@ function solicitarLoginParaConfirmar(id){
   go('/login');
   return false;
 }
-
 
 function desconfirmar(){
   if (!requireAuth()) return false;
@@ -722,10 +1008,7 @@ async function atualizarStatus(id, status, fromDetail){
   try {
     const resposta = await fetch(`${API_BASE}/occurrences/${Number(id)}/status`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ status })
     });
 
@@ -750,10 +1033,7 @@ async function atualizarStatus(id, status, fromDetail){
       }
     }
 
-    await Promise.all([
-      carregarOcorrencias(false),
-      carregarMinhasOcorrencias(false)
-    ]);
+    await Promise.all([carregarOcorrencias(false), carregarMinhasOcorrencias(false)]);
     toast(status === 'RESOLVIDO' ? 'Ocorrência marcada como resolvida.' : 'Ocorrência reaberta.');
     if (fromDetail) renderView('ocorrencia', id);
     else renderView('minhas');
@@ -775,20 +1055,22 @@ function reabrir(id, fromDetail){
   return atualizarStatus(id, 'PENDENTE', fromDetail);
 }
 
-/* ---------- Exclusão (com modal de confirmação) ---------- */
 function pedirExclusao(id){
   const o = getOccurrence(id);
   if (!o || !isMyOccurrence(id)) {
     toast('Você só pode excluir suas próprias ocorrências.', 'info');
     return;
   }
-  document.getElementById('modal-text').textContent = 'A ocorrência "' + o.title + '" será removida permanentemente. Esta ação não pode ser desfeita.';
+  document.getElementById('modal-text').textContent =
+    'A ocorrência "' + o.title + '" será removida permanentemente. Esta ação não pode ser desfeita.';
   document.getElementById('modal').classList.add('show');
   document.getElementById('modal')._id = id;
 }
+
 function closeConfirm(){
   document.getElementById('modal').classList.remove('show');
 }
+
 async function modalYes(){
   const id = Number(document.getElementById('modal')._id);
   const token = localStorage.getItem('token');
@@ -827,12 +1109,12 @@ async function modalYes(){
 
     occurrences = occurrences.filter(o => Number(o.id) !== id);
     myOccurrences = myOccurrences.filter(o => Number(o.id) !== id);
+    fotosCache.delete(id);
     closeConfirm();
     toast('Ocorrência excluída.');
     await carregarOcorrencias(false);
-    if (state.currentUser && localStorage.getItem('token')) {
-      await carregarMinhasOcorrencias(false);
-    }
+    if (state.currentUser && localStorage.getItem('token')) await carregarMinhasOcorrencias(false);
+
     const rota = parseRoute();
     if (rota[0] === 'ocorrencia' && Number(rota[1]) === id) go('/minhas');
     else renderView(...rota);
@@ -842,7 +1124,10 @@ async function modalYes(){
   }
 }
 
-/* ---------- Login ---------- */
+
+/* ==========================================================================
+   Login e Cadastro (tela do protótipo, mensagens e API do site real)
+   ========================================================================== */
 function loginView(){
   return (
     '<section style="padding-top:44px"><div class="form-card">' +
@@ -857,7 +1142,6 @@ function loginView(){
     '</div></section>'
   );
 }
-
 
 async function autenticar(email, senha){
   const resposta = await fetch(`${API_BASE}/users/login`, {
@@ -888,20 +1172,19 @@ async function autenticar(email, senha){
   localStorage.setItem('currentUser', JSON.stringify(state.currentUser));
 
   await carregarMinhasOcorrencias(false);
-  // Uma falha transitória ao carregar a lista não invalida o token recebido no login.
-  // Respostas 401/403 já limpam a sessão dentro de carregarMinhasOcorrencias().
   if (!state.currentUser || !localStorage.getItem('token')) {
     throw new Error('A API rejeitou a sessão. Entre novamente.');
   }
-
   return true;
 }
 
 async function login(e) {
   e.preventDefault();
+  const form = e.target;
   const email = document.getElementById('login-email').value.trim();
   const senha = document.getElementById('login-senha').value;
 
+  botaoOcupado(form, true, 'Entrando…');
   try {
     await autenticar(email, senha);
     toast('Login realizado com sucesso!');
@@ -909,12 +1192,11 @@ async function login(e) {
   } catch (erro) {
     console.error('Erro ao realizar login:', erro);
     toast(erro.message || 'Não foi possível conectar ao servidor.', 'info');
+    botaoOcupado(form, false);
   }
-
   return false;
 }
 
-/* ---------- Cadastro ---------- */
 function cadastroView(){
   return (
     '<section style="padding-top:44px"><div class="form-card">' +
@@ -934,9 +1216,9 @@ function cadastroView(){
   );
 }
 
-
 async function cadastro(e) {
   e.preventDefault();
+  const form = e.target;
 
   const nome = document.getElementById('cad-nome').value.trim();
   const email = document.getElementById('cad-email').value.trim();
@@ -949,6 +1231,7 @@ async function cadastro(e) {
   }
 
   let contaCriada = false;
+  botaoOcupado(form, true, 'Criando conta…');
   try {
     const resposta = await fetch(`${API_BASE}/users/register`, {
       method: 'POST',
@@ -965,11 +1248,11 @@ async function cadastro(e) {
       } catch (_) {}
       console.error('Erro no cadastro:', resposta.status, texto);
       toast(mensagem || 'Não foi possível criar a conta. Verifique os dados informados.', 'info');
+      botaoOcupado(form, false);
       return false;
     }
 
     contaCriada = true;
-    // O cadastro atual pode apenas criar a conta; autentica pelo endpoint de login existente.
     await autenticar(email, senha);
     toast('Conta criada e login realizado com sucesso!');
     go(takePostAuthRoute());
@@ -980,28 +1263,89 @@ async function cadastro(e) {
       go('/login');
     } else {
       toast(erro.message || 'Não foi possível conectar ao servidor.', 'info');
+      botaoOcupado(form, false);
     }
   }
-
   return false;
 }
 
+function logout(){
+  state.currentUser = null;
+  myOccurrences = [];
+  localStorage.removeItem('token');
+  localStorage.removeItem('currentUser');
+  closeMenu();
+  toast('Você saiu da sua conta.', 'info');
+  if (parseRoute()[0] === 'home') renderView('home');
+  else go('/');
+}
 
-/* ---------- Registrar ocorrência ---------- */
+
+/* ==========================================================================
+   Registrar e Editar
+   ========================================================================== */
+function fotosFormHtml(){
+  const f = state.pendingPhotos;
+  const itens = f.map((p, i) =>
+    '<div class="photo-preview"><img src="' + p.src + '" alt="Prévia ' + (i + 1) + '">' +
+    '<button type="button" class="remove" onclick="removePhoto(' + i + ')" aria-label="Remover foto">' + icon('x', 16) + '</button>' +
+    '<span class="photo-num">' + (i + 1) + '</span></div>').join('');
+
+  const add = f.length < MAX_FOTOS
+    ? '<label class="upload-zone">' + icon('camera', 28) + '<br>Adicionar fotos (opcional)<br>' +
+      '<small>Até ' + MAX_FOTOS + ' imagens · JPG, PNG ou WebP · máx. 5 MB cada</small>' +
+      '<input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="previewPhoto(this)"></label>'
+    : '';
+
+  return (f.length ? '<div class="photo-grid">' + itens + '</div>' : '') + add +
+    '<p class="hint">' + f.length + ' de ' + MAX_FOTOS + ' fotos</p>';
+}
+
+function atualizarFotos(){
+  const box = document.getElementById('fotos-campo');
+  if (box) box.innerHTML = fotosFormHtml();
+}
+
+function lerComoDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = ev => resolve(ev.target.result);
+    r.onerror = () => reject(new Error('leitura falhou'));
+    r.readAsDataURL(file);
+  });
+}
+
+async function previewPhoto(input){
+  const arquivos = Array.from(input.files || []);
+  input.value = '';
+  const vagas = MAX_FOTOS - state.pendingPhotos.length;
+  if (arquivos.length > vagas) toast('Máximo de ' + MAX_FOTOS + ' fotos por ocorrência.', 'info');
+
+  for (const file of arquivos.slice(0, vagas)) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast('Selecione uma imagem JPG, PNG ou WebP.', 'info');
+      continue;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('A imagem deve ter no máximo 5 MB.', 'info');
+      continue;
+    }
+    try { state.pendingPhotos.push({ file, src: await lerComoDataUrl(file) }); }
+    catch (_) { toast('Não foi possível carregar a imagem.', 'info'); }
+  }
+  atualizarFotos(); // não apaga o texto já digitado
+}
+
+function removePhoto(i){
+  state.pendingPhotos.splice(i, 1);
+  atualizarFotos();
+}
+
 function registrarView(){
   const bairroOpts = BAIRROS.map(b => '<option value="' + esc(b) + '">' + esc(b) + '</option>').join('');
-  const catOpts = categoriasAPI.map(c =>
-  '<option value="' + esc(c.id) + '">' + esc(c.nome) + '</option>'
-).join('');
-
-  const photoHtml = state.pendingPhoto
-    ? '<div class="photo-preview"><img src="' + state.pendingPhoto + '" alt="Prévia da foto">' +
-      '<button type="button" class="remove" onclick="removePhoto()">' + icon('x',16) + '</button></div>'
-    : '<label class="upload-zone">' + icon('camera',28) + '<br>Adicionar foto (opcional)<br><span style="font-size:.78rem">Clique para escolher uma imagem</span>' +
-      '<input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"></label>';
-
+  const catOpts = categoriasAPI.map(c => '<option value="' + esc(c.id) + '">' + esc(c.nome) + '</option>').join('');
   return (
-    '<section style="padding-top:32px"><div class="form-card" style="max-width:560px">' +
+    '<section style="padding-top:32px"><div class="form-card wide">' +
       '<h1>Registrar ocorrência</h1>' +
       '<p class="sub">Descreva o problema encontrado no seu bairro.</p>' +
       '<form onsubmit="return publicar(event)">' +
@@ -1014,67 +1358,23 @@ function registrarView(){
         '</div>' +
         '<div class="field"><label>Categoria</label><select id="oc-categoria" required>' +
           '<option value="" disabled selected>Selecione a categoria</option>' + catOpts + '</select></div>' +
-        '<div class="field"><label>Foto</label>' + photoHtml +
-          '<p class="muted" style="font-size:.8rem;margin-top:8px">A imagem será enviada junto com a ocorrência.</p></div>' +
-        '<button type="submit" class="btn btn-primary btn-block btn-lg">' + icon('plus',18) + ' Publicar ocorrência</button>' +
+        '<div class="field"><label>Fotos (até ' + MAX_FOTOS + ')</label><div id="fotos-campo">' + fotosFormHtml() + '</div></div>' +
+        '<button type="submit" class="btn btn-primary btn-block btn-lg">' + icon('plus', 18) + ' Publicar ocorrência</button>' +
       '</form>' +
     '</div></section>'
   );
 }
 
-
-function previewPhoto(input) {
-  const file = input.files && input.files[0];
-  if (!file) return;
-
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    toast('Selecione uma imagem JPG, PNG ou WebP.', 'info');
-    input.value = '';
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    toast('A imagem deve ter no máximo 5 MB.', 'info');
-    input.value = '';
-    return;
-  }
-
-  const reader = new FileReader();
-
-  reader.onload = function (ev) {
-    state.pendingPhoto = ev.target.result;
-    state.pendingPhotoFile = file;
-    renderView('registrar');
-  };
-
-  reader.onerror = function () {
-    toast('Não foi possível carregar a imagem.', 'info');
-  };
-
-  reader.readAsDataURL(file);
-}
-
-function removePhoto() {
-  state.pendingPhoto = null;
-  state.pendingPhotoFile = null;
-  renderView('registrar');
-}
-
-
-
-
 async function publicar(e) {
   e.preventDefault();
-
   if (!requireAuth()) return false;
+  const form = e.target;
 
   const titulo = document.getElementById('oc-titulo').value.trim();
   const descricao = document.getElementById('oc-descricao').value.trim();
   const bairro = document.getElementById('oc-bairro').value.trim();
   const rua = document.getElementById('oc-rua').value.trim();
-  const categoryId = Number(
-    document.getElementById('oc-categoria').value
-  );
+  const categoryId = Number(document.getElementById('oc-categoria').value);
 
   if (!titulo || !descricao || !bairro || !rua || !categoryId) {
     toast('Preencha todos os campos obrigatórios.', 'info');
@@ -1082,6 +1382,7 @@ async function publicar(e) {
   }
 
   const token = localStorage.getItem('token');
+  botaoOcupado(form, true, 'Publicando…');
 
   try {
     // 1. Criar a ocorrência
@@ -1091,93 +1392,65 @@ async function publicar(e) {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: JSON.stringify({
-        titulo,
-        descricao,
-        bairro,
-        rua,
-        endereco: `${rua}, ${bairro}`,
-        categoryId
-      })
+      body: JSON.stringify({ titulo, descricao, bairro, rua, endereco: `${rua}, ${bairro}`, categoryId })
     });
 
     if (!resposta.ok) {
       const erro = await resposta.text();
       console.error('Erro ao publicar:', resposta.status, erro);
       toast('Não foi possível publicar a ocorrência.', 'info');
+      botaoOcupado(form, false);
       return false;
     }
 
     const criada = await resposta.json();
-
     if (!criada?.id) {
       console.error('A API não retornou o ID da ocorrência:', criada);
       toast('Ocorrência criada, mas não foi possível identificar seu ID.', 'info');
+      botaoOcupado(form, false);
       return false;
     }
 
-    // 2. Enviar a foto selecionada, se houver
-    if (state.pendingPhotoFile) {
+    // 2. Enviar as fotos, se houver
+    let fotoFalhou = false;
+    if (state.pendingPhotos.length) {
       const formData = new FormData();
-      formData.append('files', state.pendingPhotoFile);
+      state.pendingPhotos.forEach(p => formData.append('files', p.file));
 
-      const respostaFoto = await fetch(
-        `${API_BASE}/occurrences/${criada.id}/images`,
-        {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: formData
-        }
-      );
+      const respostaFoto = await fetch(`${API_BASE}/occurrences/${criada.id}/images`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: formData
+      });
 
       if (!respostaFoto.ok) {
         const erroFoto = await respostaFoto.text();
-        console.error(
-          'Ocorrência criada, mas houve erro no upload da foto:',
-          respostaFoto.status,
-          erroFoto
-        );
-
-        toast(
-          'Ocorrência criada, mas a foto não foi enviada. Consulte o console.',
-          'info'
-        );
-
-        return false;
+        console.error('Ocorrência criada, mas houve erro no upload da foto:', respostaFoto.status, erroFoto);
+        fotoFalhou = true;
       }
     }
 
-    // 3. Limpar a foto e atualizar as listas
-    state.pendingPhoto = null;
-    state.pendingPhotoFile = null;
-
+    // 3. Limpar e atualizar
+    state.pendingPhotos = [];
     await carregarOcorrencias(false);
+    if (state.currentUser && localStorage.getItem('token')) await carregarMinhasOcorrencias(false);
 
-    if (state.currentUser && localStorage.getItem('token')) {
-      await carregarMinhasOcorrencias(false);
-    }
-
-    toast('Ocorrência registrada com sucesso!');
+    if (fotoFalhou) toast('Ocorrência criada, mas a foto não foi enviada. Consulte o console.', 'info');
+    else toast('Ocorrência registrada com sucesso!');
 
     go('/ocorrencia/' + criada.id);
-
   } catch (erro) {
     console.error('Erro ao publicar ocorrência ou enviar foto:', erro);
     toast('Não foi possível concluir a publicação. Confira o console.', 'info');
+    botaoOcupado(form, false);
   }
-
   return false;
 }
 
-
-
-/* ---------- Edição de ocorrência ---------- */
 function editarView(id){
   const o = myOccurrences.find(item => Number(item.id) === Number(id));
   if (!o) {
-    return '<section style="padding-top:40px"><div class="empty">' + icon('outro',40) +
+    return '<section style="padding-top:40px"><div class="empty">' + icon('outro', 40) +
       '<h3>Ocorrência não encontrada</h3><p>Você só pode editar ocorrências da sua conta.</p>' +
       '<button class="btn btn-primary" onclick="go(\'/minhas\')">Voltar para minhas ocorrências</button></div></section>';
   }
@@ -1187,7 +1460,7 @@ function editarView(id){
   ).join('');
   const bairroOpts = BAIRROS.map(b => '<option value="' + esc(b) + '">' + esc(b) + '</option>').join('');
 
-  return '<section style="padding-top:32px"><div class="form-card" style="max-width:560px">' +
+  return '<section style="padding-top:32px"><div class="form-card wide">' +
     '<h1>Editar ocorrência</h1>' +
     '<p class="sub">Atualize os dados da ocorrência registrada por você.</p>' +
     '<form onsubmit="return salvarEdicao(event, ' + Number(o.id) + ')">' +
@@ -1227,18 +1500,8 @@ async function salvarEdicao(e, id){
   try {
     const resposta = await fetch(`${API_BASE}/occurrences/${Number(id)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        titulo,
-        descricao,
-        bairro,
-        rua,
-        endereco: `${rua}, ${bairro}`,
-        categoryId
-      })
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ titulo, descricao, bairro, rua, endereco: `${rua}, ${bairro}`, categoryId })
     });
 
     if (!resposta.ok) {
@@ -1250,10 +1513,7 @@ async function salvarEdicao(e, id){
       return false;
     }
 
-    await Promise.all([
-      carregarOcorrencias(false),
-      carregarMinhasOcorrencias(false)
-    ]);
+    await Promise.all([carregarOcorrencias(false), carregarMinhasOcorrencias(false)]);
     toast('Ocorrência atualizada com sucesso.');
     go('/ocorrencia/' + Number(id));
   } catch (erro) {
@@ -1263,349 +1523,204 @@ async function salvarEdicao(e, id){
   return false;
 }
 
-/* ---------- Minhas ocorrências ---------- */
+
+/* ==========================================================================
+   Minhas ocorrências e 404
+   ========================================================================== */
 function minhasView(){
   const mine = myOccurrences.slice().sort((a, b) => b.id - a.id);
 
-  if(mine.length === 0){
+  if (mine.length === 0) {
     return '<section style="padding-top:40px"><div class="section-head"><h1>Minhas ocorrências</h1></div>' +
-      '<div class="empty">' + icon('pin',40) +
+      '<div class="empty">' + icon('pin', 40) +
       '<h3>Você ainda não registrou ocorrências</h3><p>Registre o primeiro problema do seu bairro.</p>' +
-      '<button class="btn btn-primary" onclick="go(\'/registrar\')">' + icon('plus',16) + ' Registrar ocorrência</button></div></section>';
+      '<button class="btn btn-primary" onclick="go(\'/registrar\')">' + icon('plus', 16) + ' Registrar ocorrência</button></div></section>';
   }
 
   const cards = mine.map(o => {
-    let statusBtn = '';
-    if(o.status === 'Aberto'){
-      statusBtn = '<button class="btn btn-outline btn-block" onclick="resolver(' + o.id + ', false)">' + icon('check-circle',16) + ' Marcar como resolvido</button>';
-    } else {
-      statusBtn = '<div class="action-row">' +
-                    '<div class="confirm-box" style="flex:1;justify-content:center">' + icon('check-circle',18) + ' Problema resolvido</div>' +
-                    '<button class="btn btn-ghost" onclick="reabrir(' + o.id + ', false)">' + icon('rotate-ccw',16) + ' Reabrir</button>' +
-                  '</div>';
-    }
-    return '<article class="card">' +
-      '<div class="card-media" onclick="go(\'/ocorrencia/' + o.id + '\')">' + photoFor(o) + '</div>' +
-      '<div class="card-body">' +
-        '<div class="card-top">' + catBadge(o.categoria) + statusBadge(o.status) + '</div>' +
-        '<h3 class="card-title" onclick="go(\'/ocorrencia/' + o.id + '\')">' + esc(o.title) + '</h3>' +
-        '<p class="card-loc">' + icon('pin',15) + ' ' + esc(o.bairro) + ' • ' + esc(o.rua) + '</p>' +
-        '<div class="card-footer">' +
-          '<span>' + icon('clock',15) + ' ' + esc(o.data) + '</span>' +
-        '</div>' +
-        statusBtn +
-        '<div class="card-actions">' +
-          '<button class="btn btn-outline btn-sm" style="flex:1" onclick="go(\'/editar/' + o.id + '\')">' + icon('edit',14) + ' Editar</button>' +
-          '<button class="btn btn-danger-outline btn-sm" style="flex:1" onclick="pedirExclusao(' + o.id + ')">' + icon('trash',14) + ' Excluir</button>' +
-        '</div>' +
-      '</div>' +
-    '</article>';
+    const statusBtn = o.status === 'Aberto'
+      ? '<button class="btn btn-outline btn-sm" onclick="resolver(' + o.id + ', false)">' + icon('check-circle', 14) + ' Resolvido</button>'
+      : '<button class="btn btn-ghost btn-sm" onclick="reabrir(' + o.id + ', false)">' + icon('rotate-ccw', 14) + ' Reabrir</button>';
+    const acoes = statusBtn +
+      '<button class="btn btn-outline btn-sm" onclick="go(\'/editar/' + o.id + '\')">' + icon('edit', 14) + ' Editar</button>' +
+      '<button class="btn btn-danger-outline btn-sm" onclick="pedirExclusao(' + o.id + ')">' + icon('trash', 14) + ' Excluir</button>';
+    return occCard(o, acoes);
   }).join('');
 
   return (
     '<section style="padding-top:32px">' +
       '<div class="section-head"><h1>Minhas ocorrências</h1></div>' +
-      '<p class="result-count">' + mine.length + (mine.length === 1 ? ' ocorrência registrada por você' : ' ocorrências registradas por você') + '</p>' +
+      '<p class="result-count">' + mine.length +
+        (mine.length === 1 ? ' ocorrência registrada por você' : ' ocorrências registradas por você') + '</p>' +
       '<div class="grid">' + cards + '</div>' +
     '</section>'
   );
 }
 
-/* ---------- 404 ---------- */
 function notFoundView(){
-  return '<section style="padding-top:40px"><div class="empty">' + icon('outro',40) +
+  return '<section style="padding-top:40px"><div class="empty">' + icon('outro', 40) +
     '<h3>Página não encontrada</h3><p>O endereço acessado não existe.</p>' +
     '<button class="btn btn-primary" onclick="go(\'/\')">Voltar ao início</button></div></section>';
 }
 
-/* ---------- Roteador ---------- */
+
+/* ==========================================================================
+   Roteador e inicialização
+   ========================================================================== */
 function parseRoute(){
-  let h = location.hash.replace(/^#/, '');
-  if(!h || h === '/') return ['home'];
+  const h = location.hash.replace(/^#/, '');
+  if (!h || h === '/') return ['home'];
   return h.split('/').filter(Boolean);
 }
 
-function requireAuth(){
-  if(!state.currentUser || !localStorage.getItem('token')){
-    toast('Faça login para continuar.', 'info');
-    go('/login');
-    return false;
-  }
-  return true;
-}
-
-function renderView(name, id){
+function renderView(name = 'home', id, semConfirmacoes){
   let html;
-  switch(name){
+  switch (name) {
     case 'home':        html = homeView(); break;
     case 'ocorrencias': html = listView(); break;
     case 'ocorrencia':  html = detailView(id); break;
     case 'login':       html = loginView(); break;
     case 'cadastro':    html = cadastroView(); break;
-    case 'registrar':   if(!requireAuth()) return; html = registrarView(); break;
-    case 'editar':      if(!requireAuth()) return; html = editarView(id); break;
-    case 'minhas':      if(!requireAuth()) return; html = minhasView(); break;
+    case 'registrar':   if (!requireAuth()) return; html = registrarView(); break;
+    case 'editar':      if (!requireAuth()) return; html = editarView(id); break;
+    case 'minhas':      if (!requireAuth()) return; html = minhasView(); break;
     default:            html = notFoundView();
   }
   document.getElementById('app').innerHTML = html;
   renderHeader();
-  if (name === 'ocorrencias') renderListGrid();
+    if (name === 'ocorrencias') renderListGrid();   // já chama observarCartoes()
+  else observarCartoes();                          // Home e Minhas
+  if (name === 'ocorrencia') {
+    if (!semConfirmacoes) carregarConfirmacoes(id);
+    carregarFotoDe(Number(id));
+  }
 
-if (name === 'ocorrencia') {
-  carregarConfirmacoes(id);
 }
 
-window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
-
+/* ===================== BLOCO C — roteador ===================== */
 async function router() {
   const rota = parseRoute();
+  const pagina = rota[0] || 'home';
+  const chave = rota.join('/');
 
-  if (rota[0] === 'minhas' || rota[0] === 'editar') {
+  // Páginas privadas: só consulta /mine se os dados estiverem velhos.
+  if (pagina === 'minhas' || pagina === 'editar') {
     if (!requireAuth()) return;
-    const carregou = await carregarMinhasOcorrencias(false);
-    if (!carregou) return;
-    if (parseRoute().join('/') !== rota.join('/')) return;
-    renderView(...rota);
-    return;
+    const carregou = await minhasSeNecessario();
+    if (!carregou && !state.currentUser) return;
+    if (parseRoute().join('/') !== chave) return;
   }
 
+  // Mostra NA HORA o que já está em memória.
   renderView(...rota);
-}
+  window.scrollTo(0, 0);
 
-function logout(){
-  state.currentUser = null;
-  myOccurrences = [];
-  localStorage.removeItem('token');
-  localStorage.removeItem('currentUser');
-  toast('Você saiu da sua conta.', 'info');
-  if (parseRoute()[0] === 'home') renderView('home');
-  else go('/');
+  // Se os dados públicos estiverem velhos, atualiza em segundo plano.
+  if (['home', 'ocorrencias', 'ocorrencia'].includes(pagina)) {
+    atualizarOcorrenciasSeNecessario(TTL_NAVEGACAO);
+  }
 }
 
 
 
+window.addEventListener('hashchange', () => {
+  closeMenu();
+  fecharLightbox();
+  router();
+});
 
-let confirmationRefreshTimer = null;
+document.addEventListener('keydown', e => {
+  const box = document.getElementById('lightbox');
+  const aberto = box && box.classList.contains('show');
+  if (e.key === 'Escape') {
+    if (aberto) fecharLightbox();
+    closeConfirm();
+  } else if (aberto && lb.fotos.length > 1) {
+    if (e.key === 'ArrowLeft') moverLightbox(-1);
+    if (e.key === 'ArrowRight') moverLightbox(1);
+  }
+});
 
-async function atualizarMonitoramentoConfirmacoes() {
-  clearInterval(confirmationRefreshTimer);
+
+
+/* ===================== BLOCO D — voltar para a aba ===================== */
+// Sem timer. Só roda quando o usuário volta para a aba, e só consulta se os dados têm > 2 min.
+async function atualizarAoVoltar() {
+  if (document.visibilityState !== 'visible') return;
 
   const rota = parseRoute();
+  const pagina = rota[0] || 'home';
+  if (!['home', 'ocorrencias', 'ocorrencia', 'minhas'].includes(pagina)) return;
 
-  async function atualizarContagensVisiveis() {
-    if (document.visibilityState !== 'visible') return;
+  await atualizarOcorrenciasSeNecessario(TTL_VOLTAR_ABA);
 
-    if (rota[0] === 'ocorrencia') {
-      const id = Number(parseRoute()[1]);
-
-      if (Number.isInteger(id) && id > 0) {
-        await carregarConfirmacoes(id);
-      }
-      return;
-    }
-
-    if (rota[0] === 'ocorrencias' || rota[0] === 'home') {
-      const lista = rota[0] === 'home'
-        ? occurrences.slice().sort((a, b) => b.id - a.id).slice(0, 3)
-        : occurrences;
-
-      await Promise.all(
-        lista.map(o => carregarConfirmacoes(o.id))
-      );
+  if (pagina === 'minhas' && state.currentUser && parseRoute().join('/') === rota.join('/')) {
+    const antes = assinatura(myOccurrences);
+    const ok = await minhasSeNecessario(TTL_VOLTAR_ABA);
+    if (ok && assinatura(myOccurrences) !== antes && parseRoute().join('/') === rota.join('/')) {
+      repintarTela(false);
     }
   }
-
-  await atualizarContagensVisiveis();
-
-  confirmationRefreshTimer = setInterval(() => {
-    atualizarContagensVisiveis();
-  }, 15000);
 }
 
-
-/* ---------- Tela de carregamento da API ---------- */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') atualizarAoVoltar();
+});
 
 let tentativaInicial = 0;
-let temporizadorCarregamento = null;
 
-function criarTelaCarregamento() {
-  let tela = document.getElementById('server-loading');
+async function iniciarAplicacao(){
+  const tentativa = ++tentativaInicial;
+  const retry = document.getElementById('loader-retry');
+  if (retry) retry.onclick = iniciarAplicacao;
 
-  if (tela) return tela;
+  const msg = (texto, erro) => window.atualizarLoader && window.atualizarLoader(texto, erro);
 
-  tela = document.createElement('div');
-  tela.id = 'server-loading';
+  msg('Conectando ao servidor…');
 
-  tela.innerHTML = `
-    <div class="server-loading-box" role="status" aria-live="polite">
-      <div class="server-spinner" id="server-spinner"></div>
+  // Mensagens que aparecem conforme a demora
+  const timers = [
+    setTimeout(() => msg('O servidor está acordando, pode levar um pouco…'), 4000),
+    setTimeout(() => msg('Ainda acordando. É normal na primeira visita, aguarde…'), 15000),
+    setTimeout(() => msg('Está demorando mais que o normal. Continue aguardando…'), 35000)
+  ];
+  const pararTimers = () => timers.forEach(clearTimeout);
 
-      <h2 id="server-loading-title">Conectando ao servidor...</h2>
-
-      <p id="server-loading-message">
-        Estamos preparando o Meu Bairro. Isso pode levar alguns instantes.
-      </p>
-
-      <button id="server-retry" type="button" hidden>
-        Tentar novamente
-      </button>
-    </div>
-  `;
-
-  Object.assign(tela.style, {
-    position: 'fixed',
-    inset: '0',
-    zIndex: '99999',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    background: '#ffffff',
-    color: '#20252b',
-    textAlign: 'center'
+  // Quando 2 das 3 cargas terminam, avisa que está quase pronto
+  let concluidas = 0;
+  const acompanhar = promessa => promessa.then(r => {
+    if (++concluidas === 2 && tentativa === tentativaInicial) {
+      pararTimers();
+      msg('Quase pronto, finalizando…');
+    }
+    return r;
   });
 
-  const estilo = document.createElement('style');
-  estilo.textContent = `
-    .server-loading-box {
-      max-width: 380px;
-      width: 100%;
-      font-family: inherit;
-    }
-
-    .server-spinner {
-      width: 36px;
-      height: 36px;
-      margin: 0 auto 22px;
-      border: 3px solid #e5e7eb;
-      border-top-color: #2563eb;
-      border-radius: 50%;
-      animation: server-spin .8s linear infinite;
-    }
-
-    @keyframes server-spin {
-      to { transform: rotate(360deg); }
-    }
-
-    #server-loading-title {
-      font-size: 1.2rem;
-      margin: 0 0 10px;
-    }
-
-    #server-loading-message {
-      color: #68717d;
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    #server-retry {
-      margin-top: 20px;
-      padding: 11px 18px;
-      border: 0;
-      border-radius: 8px;
-      background: #2563eb;
-      color: white;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-  `;
-
-  document.head.appendChild(estilo);
-  document.body.appendChild(tela);
-
-  return tela;
-}
-
-function atualizarTelaCarregamento(titulo, mensagem, erro = false) {
-  criarTelaCarregamento();
-
-  document.getElementById('server-loading-title').textContent = titulo;
-  document.getElementById('server-loading-message').textContent = mensagem;
-  document.getElementById('server-spinner').hidden = erro;
-  document.getElementById('server-retry').hidden = !erro;
-}
-
-function ocultarTelaCarregamento() {
-  clearTimeout(temporizadorCarregamento);
-
-  const tela = document.getElementById('server-loading');
-  if (tela) tela.remove();
-}
-
-async function iniciarAplicacao() {
-  const tentativa = ++tentativaInicial;
-
-  criarTelaCarregamento();
-
-  atualizarTelaCarregamento(
-    'Conectando ao servidor...',
-    'Estamos preparando o Meu Bairro. Isso pode levar alguns instantes.'
-  );
-
-  temporizadorCarregamento = setTimeout(() => {
-    if (tentativa !== tentativaInicial) return;
-
-    atualizarTelaCarregamento(
-      'A conexão está demorando',
-      'O servidor pode estar iniciando após um período sem uso. Aguarde mais um pouco.'
-    );
-  }, 7000);
-
   try {
-    await carregarCategorias();
-    await restaurarSessao();
+    const [categorias, sessaoRestaurada, ocorrenciasCarregadas] = await Promise.all([
+      acompanhar(carregarCategorias()),
+      acompanhar(restaurarSessao()),
+      acompanhar(carregarOcorrencias(false))
+    ]);
 
-    const carregouOcorrencias = await carregarOcorrencias();
-
+    pararTimers();
     if (tentativa !== tentativaInicial) return;
-
-    if (!carregouOcorrencias) {
-      atualizarTelaCarregamento(
-        'Não foi possível conectar ao servidor',
-        'O servidor pode estar temporariamente indisponível. Tente novamente em alguns instantes.',
-        true
-      );
-
-      document.getElementById('server-retry').onclick = iniciarAplicacao;
-      return;
+    if (categorias === null || !sessaoRestaurada || !ocorrenciasCarregadas) {
+      throw new Error('Não foi possível concluir o carregamento dos dados necessários.');
     }
 
-    ocultarTelaCarregamento();
-    atualizarMonitoramentoConfirmacoes();
-
+    msg('Tudo pronto! Abrindo o Meu Bairro…');
+    renderView(...parseRoute());
+    window.scrollTo(0, 0);
+    if (window.esconderLoader) await window.esconderLoader();
   } catch (erro) {
+    pararTimers();
     console.error('Erro ao iniciar o Meu Bairro:', erro);
-
     if (tentativa !== tentativaInicial) return;
-
-    atualizarTelaCarregamento(
-      'Não foi possível conectar ao servidor',
-      'Verifique sua conexão e tente novamente.',
-      true
-    );
-
-    document.getElementById('server-retry').onclick = iniciarAplicacao;
-
-  } finally {
-    clearTimeout(temporizadorCarregamento);
+    msg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', true);
   }
 }
 
-
-window.addEventListener(
-  'hashchange',
-  atualizarMonitoramentoConfirmacoes
-);
-
-document.addEventListener(
-  'visibilitychange',
-  atualizarMonitoramentoConfirmacoes
-);
-
-
-window.addEventListener('hashchange', router);
 
 window.addEventListener('DOMContentLoaded', iniciarAplicacao);

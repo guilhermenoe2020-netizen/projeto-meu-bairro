@@ -1,6 +1,7 @@
 
 package br.com.meubairro.backend.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -80,6 +81,8 @@ public class OccurrenceService {
         occurrence.setDescricao(request.getDescricao());
         occurrence.setBairro(request.getBairro());
         occurrence.setRua(request.getRua());
+        occurrence.setCep(request.getCep());
+        occurrence.setComplemento(request.getComplemento());
         occurrence.setEndereco(request.getEndereco());
         occurrence.setCategory(category);
         occurrence.setUser(user);
@@ -102,6 +105,8 @@ public class OccurrenceService {
         occurrence.setDescricao(request.getDescricao());
         occurrence.setBairro(request.getBairro());
         occurrence.setRua(request.getRua());
+        occurrence.setCep(request.getCep());
+        occurrence.setComplemento(request.getComplemento());
         occurrence.setEndereco(request.getEndereco());
         occurrence.setCategory(category);
 
@@ -116,16 +121,46 @@ public class OccurrenceService {
         Occurrence occurrence = findById(id);
         verifyOwner(occurrence);
 
-        if (request.getStatus() == null
-                || !(request.getStatus().equals("PENDENTE")
-                || request.getStatus().equals("RESOLVIDO"))) {
+        String novoStatus = request.getStatus();
+
+        if (novoStatus == null
+                || !("PENDENTE".equals(novoStatus)
+                || "RESOLVIDO".equals(novoStatus))) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Status inválido");
         }
 
-        occurrence.setStatus(request.getStatus());
+        if ("RESOLVIDO".equals(novoStatus)) {
+
+            if (request.getDataResolucao() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Informe a data em que a ocorrência foi resolvida");
+            }
+
+            if (request.getDataResolucao().isAfter(
+                    LocalDateTime.now())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "A data de resolução não pode ser futura");
+            }
+
+            occurrence.setDataResolucao(
+                    request.getDataResolucao());
+
+            User responsavel = getAuthenticatedUser();
+
+            occurrence.setResponsavel_resolucao(
+                    responsavel.getEmail());
+
+        } else {
+            occurrence.setDataResolucao(null);
+            occurrence.setResponsavel_resolucao(null);
+        }
+
+        occurrence.setStatus(novoStatus);
 
         return occurrenceRepository.save(occurrence);
     }
@@ -186,6 +221,8 @@ public class OccurrenceService {
         private String descricao;
         private String bairro;
         private String rua;
+        private String cep;
+        private String complemento;
         private String endereco;
         private Long categoryId;
 
@@ -221,6 +258,22 @@ public class OccurrenceService {
             this.rua = rua;
         }
 
+        public String getCep() {
+            return cep;
+        }
+
+        public void setCep(String cep) {
+            this.cep = cep;
+        }
+
+        public String getComplemento() {
+            return complemento;
+        }
+
+        public void setComplemento(String complemento) {
+            this.complemento = complemento;
+        }
+
         public String getEndereco() {
             return endereco;
         }
@@ -241,6 +294,7 @@ public class OccurrenceService {
     public static class StatusRequest {
 
         private String status;
+        private LocalDateTime dataResolucao;
 
         public String getStatus() {
             return status;
@@ -248,6 +302,14 @@ public class OccurrenceService {
 
         public void setStatus(String status) {
             this.status = status;
+        }
+
+        public LocalDateTime getDataResolucao() {
+            return dataResolucao;
+        }
+
+        public void setDataResolucao(LocalDateTime dataResolucao) {
+            this.dataResolucao = dataResolucao;
         }
     }
 }

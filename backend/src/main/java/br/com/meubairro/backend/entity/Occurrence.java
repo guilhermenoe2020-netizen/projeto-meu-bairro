@@ -21,11 +21,19 @@ public class Occurrence {
     private String bairro;
 
     private String rua;
+    
+    private String cep;
+    
+    private String complemento;
 
     private String endereco;
 
     private String status = "PENDENTE";
-
+    
+    private String responsavel_resolucao;
+    
+    private LocalDateTime dataResolucao;
+    
     private LocalDateTime dataRegistro = LocalDateTime.now(ZoneId.of("America/Manaus"));
 
     @ManyToOne
@@ -75,6 +83,15 @@ public class Occurrence {
         this.rua = rua;
     }
 
+    public String getCep() {
+        return cep;
+    }
+
+    public void setCep(String cep) {
+        this.cep = cep;
+    }
+    
+ 
     public String getEndereco() {
         return endereco;
     }
@@ -102,6 +119,30 @@ public class Occurrence {
     public void setCategory(Category category) {
         this.category = category;
     }
+    
+    public String getComplemento() {
+		return complemento;
+	}
+
+	public void setComplemento(String complemento) {
+		this.complemento = complemento;
+	}
+
+	public String getResponsavel_resolucao() {
+		return responsavel_resolucao;
+	}
+
+	public void setResponsavel_resolucao(String responsavel_resolucao) {
+		this.responsavel_resolucao = responsavel_resolucao;
+	}
+
+	public LocalDateTime getDataResolucao() {
+		return dataResolucao;
+	}
+
+	public void setDataResolucao(LocalDateTime dataResolucao) {
+		this.dataResolucao = dataResolucao;
+	}
 
     public User getUser() {
         return user;
