@@ -48,7 +48,68 @@ const CATEGORIES = {
 };
 
 const API_BASE = 'https://projeto-meu-bairro.onrender.com/api';
-const BAIRROS = ['Cidade Nova', 'Flores', 'Parque 10', 'Adrianópolis'];
+const BAIRROS = [
+  'Adrianópolis',
+  'Aleixo',
+  'Alvorada',
+  'Armando Mendes',
+  'Betânia',
+  'Cachoeirinha',
+  'Centro',
+  'Chapada',
+  'Cidade de Deus',
+  'Cidade Nova',
+  'Colônia Antônio Aleixo',
+  'Colônia Oliveira Machado',
+  'Compensa',
+  'Coroado',
+  'Crespo',
+  'Da Paz',
+  'Distrito Industrial I',
+  'Distrito Industrial II',
+  'Dom Pedro',
+  'Educandos',
+  'Flores',
+  'Gilberto Mestrinho',
+  'Glória',
+  'Japiim',
+  'Jorge Teixeira',
+  'Lago Azul',
+  'Lírio do Vale',
+  'Mauazinho',
+  'Monte das Oliveiras',
+  'Nossa Senhora das Graças',
+  'Nova Cidade',
+  'Nova Esperança',
+  'Novo Aleixo',
+  'Petrópolis',
+  'Planalto',
+  'Ponta Negra',
+  'Praça 14 de Janeiro',
+  'Presidente Vargas',
+  'Puraquequara',
+  'Raiz',
+  'Redenção',
+  'Santa Etelvina',
+  'Santa Luzia',
+  'Santo Agostinho',
+  'Santo Antônio',
+  'São Francisco',
+  'São Geraldo',
+  'São Jorge',
+  'São José Operário',
+  'São Lázaro',
+  'São Raimundo',
+  'Tancredo Neves',
+  'Tarumã',
+  'Tarumã-Açu',
+  'Vila Buriti',
+  'Zumbi dos Palmares',
+  'Aparecida',
+  'Morro da Liberdade',
+  'Vila da Prata',
+  'Colônia Santo Antônio'
+];
 const MAX_FOTOS = 3;
 const HOME_RECENTES = 4;
 
@@ -97,6 +158,15 @@ function formatarData(data) {
   return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : valor;
 }
 
+function formatarDataHora(data) {
+  if (!data) return '';
+  const valor = String(data);
+  const partes = valor.split('T');
+  const dataFormatada = formatarData(partes[0]);
+  const hora = partes[1] ? partes[1].slice(0, 5) : '';
+  return dataFormatada + (hora ? ' às ' + hora : '');
+}
+
 function adaptarOcorrencia(o) {
   const categoria = o.category || o.categoria || {};
   const usuario = o.user || o.usuario || {};
@@ -109,7 +179,11 @@ function adaptarOcorrencia(o) {
     description: o.descricao || '',
     bairro: o.bairro || '',
     rua: o.rua || '',
+    cep: o.cep || '',
+    complemento: o.complemento || '',
     endereco: o.endereco || '',
+    responsavelResolucao: o.responsavel_resolucao || o.responsavelResolucao || '',
+    dataResolucao: o.dataResolucao || null,
     categoria: categoria.nome || 'Outro',
     categoryId: categoria.id != null ? Number(categoria.id) : Number(o.categoryId || 0),
     data: formatarData(o.dataRegistro || o.data),
@@ -473,7 +547,6 @@ async function restaurarSessao() {
 }
 
 
-
 async function carregarCategorias() {
   try {
     const resposta = await fetch(`${API_BASE}/categories`);
@@ -487,6 +560,15 @@ async function carregarCategorias() {
     console.error('Erro ao carregar categorias:', erro);
     return null;
   }
+}
+
+function chaveConfirmacaoUsuario(id) {
+  const usuarioId = state.currentUser?.id || 'anonimo';
+  return 'meuBairro:confirmacao:' + usuarioId + ':' + Number(id);
+}
+
+function usuarioJaConfirmou(id) {
+  return Boolean(state.currentUser && localStorage.getItem(chaveConfirmacaoUsuario(id)) === 'true');
 }
 
 async function carregarConfirmacoes(id) {
@@ -503,18 +585,38 @@ async function carregarConfirmacoes(id) {
     const dados = await jsonOpcional(resposta);
     confirmationState[occurrenceId] = {
       ...confirmationState[occurrenceId],
-      total: Number(dados?.totalConfirmations ?? 0)
+      total: Number(dados?.totalConfirmations ?? 0),
+      confirmedByMe: usuarioJaConfirmou(occurrenceId)
     };
 
-    const elemento = document.getElementById(`confirmation-count-${occurrenceId}`);
-    if (elemento) {
-      elemento.innerHTML = icon('check-circle', 16) + ' ' + esc(confirmText(confirmationState[occurrenceId].total));
-    }
+    const texto = icon('check-circle', 16) + ' ' +
+  esc(confirmText(confirmationState[occurrenceId].total));
+
+// Atualiza o contador na tela de detalhes
+const elemento = document.getElementById(`confirmation-count-${occurrenceId}`);
+if (elemento) {
+  elemento.innerHTML = texto;
+}
+
+// Atualiza o contador nos cards
+document.querySelectorAll(`[data-confirmation-count="${occurrenceId}"]`)
+  .forEach(card => {
+    card.innerHTML = texto;
+  });
+
     return confirmationState[occurrenceId];
   } catch (erro) {
     console.error('Erro ao carregar confirmações:', erro);
     return null;
   }
+}
+
+async function carregarConfirmacoesDosCartoes() {
+  const cards = document.querySelectorAll('.occ[data-id]');
+
+  await Promise.all(
+    [...cards].map(card => carregarConfirmacoes(card.dataset.id))
+  );
 }
 
 async function confirmar(id) {
@@ -535,7 +637,11 @@ async function confirmar(id) {
       return false;
     }
     if (resposta.status === 403) {
+      localStorage.setItem(chaveConfirmacaoUsuario(occurrenceId), 'true');
+      confirmationState[occurrenceId] = { ...confirmationState[occurrenceId], confirmedByMe: true };
       toast('Você já confirmou esta ocorrência.', 'info');
+      await carregarConfirmacoes(occurrenceId);
+      renderView('ocorrencia', occurrenceId, true);
       return false;
     }
     if (resposta.status === 409) {
@@ -551,6 +657,8 @@ async function confirmar(id) {
       return false;
     }
 
+    localStorage.setItem(chaveConfirmacaoUsuario(occurrenceId), 'true');
+    confirmationState[occurrenceId] = { ...confirmationState[occurrenceId], confirmedByMe: true };
     await carregarConfirmacoes(occurrenceId);
     toast('Ocorrência confirmada com sucesso!');
     renderView('ocorrencia', occurrenceId, true);
@@ -763,6 +871,8 @@ function occCard(o, acoes){
     '<div class="occ-foot">' +
       '<span class="occ-loc">' + icon('pin', 16) + '<b>' + esc(o.bairro) + '</b></span>' +
       '<span class="occ-date">' + icon('clock', 15) + esc(o.data) + '</span>' +
+      '<span class="badge" data-confirmation-count="' + o.id + '">' +
+      icon('check-circle', 15) + ' 0 confirmações</span>' +
       '<span class="occ-status ' + (aberto ? 'is-open' : 'is-done') + '">' + esc(o.status) + '</span>' +
     '</div>' +
     (acoes ? '<div class="occ-actions">' + acoes + '</div>' : '') +
@@ -900,9 +1010,9 @@ function renderListGrid(){
   document.getElementById('list-grid').innerHTML = list.length === 0
     ? '<div class="empty" style="grid-column:1/-1">' + icon('search', 40) +
       '<h3>Nenhuma ocorrência encontrada</h3><p>Tente ajustar os filtros de busca.</p></div>'
-    : list.map(occurrenceCard).join('');
-    observarCartoes();
-
+        : list.map(occurrenceCard).join('');
+  observarCartoes();
+  carregarConfirmacoesDosCartoes();
 }
 
 function detailView(id){
@@ -916,6 +1026,7 @@ function detailView(id){
   const isAuthor = isMyOccurrence(o.id);
   const autenticado = Boolean(state.currentUser && localStorage.getItem('token'));
   const total = confirmationState[o.id]?.total ?? o.confirmations ?? 0;
+  const jaConfirmou = confirmationState[o.id]?.confirmedByMe ?? usuarioJaConfirmou(o.id);
 
   const confirmBox =
     '<div class="det-card det-ask">' +
@@ -923,7 +1034,9 @@ function detailView(id){
       '<p class="muted">Confirmar ajuda a dar visibilidade ao problema.</p>' +
       '<p class="det-count" id="confirmation-count-' + o.id + '">' + icon('check-circle', 16) + ' ' + esc(confirmText(total)) + '</p>' +
       (autenticado
-        ? '<button class="btn btn-outline btn-block" onclick="confirmar(' + o.id + ')">' + icon('check-circle', 16) + ' Confirmar ocorrência</button>'
+        ? (jaConfirmou
+          ? '<button class="btn btn-ghost btn-block" onclick="desconfirmar(' + o.id + ')">' + icon('rotate-ccw', 16) + ' Remover confirmação</button>'
+          : '<button class="btn btn-outline btn-block" onclick="confirmar(' + o.id + ')">' + icon('check-circle', 16) + ' Confirmar ocorrência</button>')
         : '<button class="btn btn-outline btn-block" onclick="solicitarLoginParaConfirmar(' + o.id + ')">Entrar para confirmar</button>') +
     '</div>';
 
@@ -965,8 +1078,11 @@ function detailView(id){
             '<dl class="det-list">' +
               '<div><dt>Bairro</dt><dd>' + esc(o.bairro) + '</dd></div>' +
               '<div><dt>Rua</dt><dd>' + esc(o.rua) + '</dd></div>' +
+              (o.cep ? '<div><dt>CEP</dt><dd>' + esc(o.cep) + '</dd></div>' : '') +
+              (o.complemento ? '<div><dt>Complemento</dt><dd>' + esc(o.complemento) + '</dd></div>' : '') +
               '<div><dt>Registrada em</dt><dd>' + esc(o.data) + '</dd></div>' +
               '<div><dt>Situação</dt><dd>' + esc(o.status) + '</dd></div>' +
+              (o.statusBackend === 'RESOLVIDO' ? '<div><dt>Resolvida em</dt><dd>' + esc(formatarData(o.dataResolucao)) + '</dd></div><div><dt>Responsável pela resolução</dt><dd>' + esc(o.responsavelResolucao || 'Não informado') + '</dd></div>' : '') +
             '</dl>' +
           '</div>' +
           confirmBox +
@@ -991,10 +1107,114 @@ function solicitarLoginParaConfirmar(id){
   return false;
 }
 
-function desconfirmar(){
-  if (!requireAuth()) return false;
-  toast('A API ainda não oferece confirmações.', 'info');
-  return false;
+async function desconfirmar(id){
+  const occurrenceId = Number(id);
+  const token = localStorage.getItem('token');
+  if (!Number.isInteger(occurrenceId) || occurrenceId <= 0) return false;
+  if (!requireAuth() || !token) return false;
+
+  try {
+    const resposta = await fetch(`${API_BASE}/occurrences/${occurrenceId}/confirmations`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (resposta.status === 401) {
+      toast('Sua sessão expirou. Entre novamente.', 'info');
+      logout();
+      return false;
+    }
+    if (!resposta.ok) {
+      const detalhe = await resposta.text();
+      console.error('Erro ao remover confirmação:', resposta.status, detalhe);
+      toast(resposta.status === 404
+        ? 'Você ainda não confirmou esta ocorrência.'
+        : 'Não foi possível remover sua confirmação.', 'info');
+      return false;
+    }
+
+    localStorage.removeItem(chaveConfirmacaoUsuario(occurrenceId));
+    confirmationState[occurrenceId] = { ...confirmationState[occurrenceId], confirmedByMe: false };
+    await carregarConfirmacoes(occurrenceId);
+    toast('Sua confirmação foi removida.');
+    renderView('ocorrencia', occurrenceId, true);
+    return true;
+  } catch (erro) {
+    console.error('Falha ao remover confirmação:', erro);
+    toast('Não foi possível conectar ao servidor.', 'info');
+    return false;
+  }
+}
+
+
+function abrirModalResolucao() {
+  return new Promise(resolve => {
+    const anterior = document.getElementById('modal-resolucao-personalizado');
+    if (anterior) anterior.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-resolucao-personalizado';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(10,20,16,.68);display:flex;align-items:center;justify-content:center;padding:18px;';
+    overlay.innerHTML = `
+      <section role="dialog" aria-modal="true" aria-labelledby="resolucao-titulo" style="width:min(100%,520px);max-height:90vh;overflow:auto;background:var(--white,#fff);color:var(--ink,#1d2b24);border-radius:16px;padding:26px;box-shadow:0 18px 60px rgba(0,0,0,.28)">
+        <h2 id="resolucao-titulo" style="margin:0 0 8px;font-size:1.45rem">Registrar resolução</h2>
+        <p style="margin:0 0 20px;color:var(--muted,#4f5f56)">Selecione quem resolveu o problema e informe a data da resolução.</p>
+        <form id="form-resolucao">
+          <div class="field">
+            <label for="resolucao-responsavel">Quem resolveu? *</label>
+            <select id="resolucao-responsavel" required>
+              <option value="" selected disabled>Selecione o responsável</option>
+              <option value="Prefeitura de Manaus">Prefeitura de Manaus</option>
+              <option value="Governo do Estado do Amazonas">Governo do Estado do Amazonas</option>
+              <option value="Governo Federal">Governo Federal</option>
+              <option value="Concessionária de serviço público">Concessionária de serviço público</option>
+              <option value="Empresa prestadora de serviço">Empresa prestadora de serviço</option>
+              <option value="Moradores da comunidade">Moradores da comunidade</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="resolucao-data">Data da resolução *</label>
+            <input id="resolucao-data" type="date" required>
+            <p class="hint">Informe a data em que o problema foi resolvido.</p>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:22px">
+            <button type="button" class="btn btn-ghost" id="resolucao-cancelar">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Confirmar resolução</button>
+          </div>
+        </form>
+      </section>`;
+    document.body.appendChild(overlay);
+
+    const select = overlay.querySelector('#resolucao-responsavel');
+    const dataInput = overlay.querySelector('#resolucao-data');
+    const agora = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const hoje = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())}`;
+    dataInput.max = hoje;
+
+    let finalizado = false;
+    const fechar = valor => {
+      if (finalizado) return;
+      finalizado = true;
+      overlay.remove();
+      resolve(valor);
+    };
+    overlay.querySelector('#resolucao-cancelar').addEventListener('click', () => fechar(null));
+    overlay.addEventListener('click', e => { if (e.target === overlay) fechar(null); });
+    overlay.querySelector('#form-resolucao').addEventListener('submit', e => {
+      e.preventDefault();
+      if (!select.value) { select.reportValidity(); return; }
+      if (!dataInput.value) { dataInput.reportValidity(); return; }
+      if (dataInput.value > dataInput.max) {
+        toast('A data da resolução não pode estar no futuro.', 'info');
+        dataInput.focus();
+        return;
+      }
+      // A API recebe LocalDateTime, mas a interface pede e exibe somente a data.
+      fechar({ dataResolucao: dataInput.value + 'T00:00:00', responsavelResolucao: select.value });
+    });
+    select.focus();
+  });
 }
 
 async function atualizarStatus(id, status, fromDetail){
@@ -1005,11 +1225,23 @@ async function atualizarStatus(id, status, fromDetail){
     return;
   }
 
+  let dataResolucao = null;
+  let responsavelResolucao = null;
+  if (status === 'RESOLVIDO') {
+    const dadosResolucao = await abrirModalResolucao();
+    if (!dadosResolucao) {
+      toast('A resolução foi cancelada.', 'info');
+      return;
+    }
+    dataResolucao = dadosResolucao.dataResolucao;
+    responsavelResolucao = dadosResolucao.responsavelResolucao;
+  }
+
   try {
     const resposta = await fetch(`${API_BASE}/occurrences/${Number(id)}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status })
+      body: JSON.stringify(status === 'RESOLVIDO' ? { status, dataResolucao, responsavelResolucao } : { status })
     });
 
     if (!resposta.ok) {
@@ -1306,6 +1538,125 @@ function atualizarFotos(){
   if (box) box.innerHTML = fotosFormHtml();
 }
 
+let fotosEdicao = [];
+let fotosRemovidasEdicao = [];
+
+async function carregarFotosEdicao(id) {
+  fotosEdicao = [];
+  fotosRemovidasEdicao = [];
+  state.pendingPhotos = [];
+
+  const campo = document.getElementById('fotos-edicao-campo');
+  if (!campo) return;
+
+  try {
+    const resposta = await fetch(
+      `${API_BASE}/occurrences/${id}/images`
+    );
+
+    if (!resposta.ok) {
+      throw new Error('Não foi possível carregar as fotos.');
+    }
+
+    fotosEdicao = await resposta.json();
+    renderizarFotosEdicao();
+  } catch (erro) {
+    console.error(erro);
+    campo.innerHTML =
+      '<p class="hint">Não foi possível carregar as fotos existentes.</p>';
+  }
+}
+
+function renderizarFotosEdicao() {
+  const campo = document.getElementById('fotos-edicao-campo');
+  if (!campo) return;
+
+  const total = fotosEdicao.length + state.pendingPhotos.length;
+
+  const existentes = fotosEdicao.map((foto, i) =>
+    '<div class="photo-preview">' +
+      '<img src="' + esc(foto.imageUrl) + '" alt="Foto existente">' +
+      '<button type="button" class="remove" ' +
+        'onclick="removerFotoExistenteEdicao(' + i + ')" ' +
+        'aria-label="Remover foto">' + icon('x', 16) + '</button>' +
+    '</div>'
+  ).join('');
+
+  const novas = state.pendingPhotos.map((foto, i) =>
+    '<div class="photo-preview">' +
+      '<img src="' + foto.src + '" alt="Nova foto">' +
+      '<button type="button" class="remove" ' +
+        'onclick="removerNovaFotoEdicao(' + i + ')" ' +
+        'aria-label="Remover foto">' + icon('x', 16) + '</button>' +
+    '</div>'
+  ).join('');
+
+  const adicionar = total < MAX_FOTOS
+    ? '<label class="upload-zone">' +
+        icon('camera', 28) +
+        '<br>Adicionar fotos (opcional)<br>' +
+        '<small>JPG, PNG ou WebP · máx. 5 MB cada</small>' +
+        '<input type="file" accept="image/jpeg,image/png,image/webp" ' +
+          'multiple style="display:none" onchange="previewFotoEdicao(this)">' +
+      '</label>'
+    : '';
+
+  campo.innerHTML =
+    (existentes + novas
+      ? '<div class="photo-grid">' + existentes + novas + '</div>'
+      : '') +
+    adicionar +
+    '<p class="hint">' + total + ' de ' + MAX_FOTOS + ' fotos</p>';
+}
+
+function removerFotoExistenteEdicao(indice) {
+  const foto = fotosEdicao[indice];
+  if (!foto) return;
+
+  fotosRemovidasEdicao.push(foto.id);
+  fotosEdicao.splice(indice, 1);
+  renderizarFotosEdicao();
+}
+
+function removerNovaFotoEdicao(indice) {
+  state.pendingPhotos.splice(indice, 1);
+  renderizarFotosEdicao();
+}
+
+async function previewFotoEdicao(input) {
+  const arquivos = Array.from(input.files || []);
+  input.value = '';
+
+  const vagas = MAX_FOTOS - fotosEdicao.length - state.pendingPhotos.length;
+
+  if (arquivos.length > vagas) {
+    toast('Máximo de ' + MAX_FOTOS + ' fotos por ocorrência.', 'info');
+  }
+
+  for (const file of arquivos.slice(0, vagas)) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast('Selecione uma imagem JPG, PNG ou WebP.', 'info');
+      continue;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast('A imagem deve ter no máximo 5 MB.', 'info');
+      continue;
+    }
+
+    try {
+      state.pendingPhotos.push({
+        file,
+        src: await lerComoDataUrl(file)
+      });
+    } catch (_) {
+      toast('Não foi possível carregar a imagem.', 'info');
+    }
+  }
+
+  renderizarFotosEdicao();
+}
+
 function lerComoDataUrl(file){
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -1352,9 +1703,12 @@ function registrarView(){
         '<div class="field"><label>Título</label><input type="text" id="oc-titulo" placeholder="Ex.: Buraco na Rua das Flores" required></div>' +
         '<div class="field"><label>Descrição</label><textarea id="oc-descricao" placeholder="Descreva o problema com detalhes…" required></textarea></div>' +
         '<div class="form-row">' +
-          '<div class="field"><label>Bairro</label><input type="text" id="oc-bairro" list="bairros" placeholder="Ex.: Cidade Nova" required>' +
-            '<datalist id="bairros">' + bairroOpts + '</datalist></div>' +
+          '<div class="field"><label>Bairro</label><select id="oc-bairro" required><option value="" disabled selected>Selecione o bairro</option>' + bairroOpts + '</select></div>' +
           '<div class="field"><label>Rua</label><input type="text" id="oc-rua" placeholder="Ex.: Rua das Flores" required></div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="field"><label>CEP</label><input type="text" id="oc-cep" inputmode="numeric" maxlength="9" placeholder="00000-000"></div>' +
+          '<div class="field"><label>Complemento</label><input type="text" id="oc-complemento" placeholder="Ex.: próximo à praça"></div>' +
         '</div>' +
         '<div class="field"><label>Categoria</label><select id="oc-categoria" required>' +
           '<option value="" disabled selected>Selecione a categoria</option>' + catOpts + '</select></div>' +
@@ -1374,6 +1728,8 @@ async function publicar(e) {
   const descricao = document.getElementById('oc-descricao').value.trim();
   const bairro = document.getElementById('oc-bairro').value.trim();
   const rua = document.getElementById('oc-rua').value.trim();
+  const cep = document.getElementById('oc-cep').value.trim();
+  const complemento = document.getElementById('oc-complemento').value.trim();
   const categoryId = Number(document.getElementById('oc-categoria').value);
 
   if (!titulo || !descricao || !bairro || !rua || !categoryId) {
@@ -1392,7 +1748,7 @@ async function publicar(e) {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: JSON.stringify({ titulo, descricao, bairro, rua, endereco: `${rua}, ${bairro}`, categoryId })
+      body: JSON.stringify({ titulo, descricao, bairro, rua, cep, complemento, endereco: `${rua}, ${bairro}`, categoryId })
     });
 
     if (!resposta.ok) {
@@ -1467,19 +1823,28 @@ function editarView(id){
       '<div class="field"><label>Título</label><input type="text" id="edit-titulo" value="' + esc(o.title) + '" required></div>' +
       '<div class="field"><label>Descrição</label><textarea id="edit-descricao" required>' + esc(o.description) + '</textarea></div>' +
       '<div class="form-row">' +
-        '<div class="field"><label>Bairro</label><input type="text" id="edit-bairro" list="edit-bairros" value="' + esc(o.bairro) + '" required><datalist id="edit-bairros">' + bairroOpts + '</datalist></div>' +
+        '<div class="field"><label>Bairro</label><select id="edit-bairro" required><option value="" disabled' + (o.bairro ? '' : ' selected') + '>Selecione o bairro</option>' + BAIRROS.map(b => '<option value="' + esc(b) + '"' + (b === o.bairro ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select></div>' +
         '<div class="field"><label>Rua</label><input type="text" id="edit-rua" value="' + esc(o.rua) + '" required></div>' +
       '</div>' +
+      '<div class="form-row">' +
+        '<div class="field"><label>CEP</label><input type="text" id="edit-cep" inputmode="numeric" maxlength="9" value="' + esc(o.cep) + '" placeholder="00000-000"></div>' +
+        '<div class="field"><label>Complemento</label><input type="text" id="edit-complemento" value="' + esc(o.complemento) + '" placeholder="Ex.: próximo à praça"></div>' +
+      '</div>' +
       '<div class="field"><label>Categoria</label><select id="edit-categoria" required><option value="" disabled' + (o.categoryId ? '' : ' selected') + '>Selecione a categoria</option>' + categoryOptions + '</select></div>' +
+      '<div class="field"><label>Fotos (até ' + MAX_FOTOS + ')</label>' +
+      '<div id="fotos-edicao-campo"><p class="hint">Carregando fotos...</p></div></div>' +
       '<button type="submit" class="btn btn-primary btn-block btn-lg">Salvar alterações</button>' +
       '<button type="button" class="btn btn-ghost btn-block" onclick="go(\'/minhas\')">Cancelar</button>' +
     '</form>' +
   '</div></section>';
 }
 
-async function salvarEdicao(e, id){
+
+async function salvarEdicao(e, id) {
   e.preventDefault();
+
   if (!requireAuth()) return false;
+
   if (!isMyOccurrence(id)) {
     toast('Você só pode editar suas próprias ocorrências.', 'info');
     go('/minhas');
@@ -1490,36 +1855,112 @@ async function salvarEdicao(e, id){
   const descricao = document.getElementById('edit-descricao').value.trim();
   const bairro = document.getElementById('edit-bairro').value.trim();
   const rua = document.getElementById('edit-rua').value.trim();
+  const cep = document.getElementById('edit-cep').value.trim();
+  const complemento = document.getElementById('edit-complemento').value.trim();
   const categoryId = Number(document.getElementById('edit-categoria').value);
-  if (!titulo || !descricao || !bairro || !rua || !Number.isInteger(categoryId) || categoryId <= 0) {
+
+  if (!titulo || !descricao || !bairro || !rua ||
+      !Number.isInteger(categoryId) || categoryId <= 0) {
     toast('Preencha todos os campos obrigatórios.', 'info');
     return false;
   }
 
   const token = localStorage.getItem('token');
+  const form = e.target;
+  botaoOcupado(form, true, 'Salvando...');
+
   try {
+    // 1. Atualizar os dados da ocorrência
     const resposta = await fetch(`${API_BASE}/occurrences/${Number(id)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ titulo, descricao, bairro, rua, endereco: `${rua}, ${bairro}`, categoryId })
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        titulo,
+        descricao,
+        bairro,
+        rua,
+        cep,
+        complemento,
+        endereco: `${rua}, ${bairro}`,
+        categoryId
+      })
     });
 
     if (!resposta.ok) {
       const detalhe = await resposta.text();
       console.error('Erro ao editar ocorrência:', resposta.status, detalhe);
-      if (resposta.status === 401) logout();
-      else if (resposta.status === 403) toast('Você não tem permissão para editar esta ocorrência.', 'info');
-      else toast('Não foi possível salvar as alterações.', 'info');
+
+      if (resposta.status === 401) {
+        logout();
+      } else if (resposta.status === 403) {
+        toast('Você não tem permissão para editar esta ocorrência.', 'info');
+      } else {
+        toast('Não foi possível salvar as alterações.', 'info');
+      }
+
+      botaoOcupado(form, false);
       return false;
     }
 
-    await Promise.all([carregarOcorrencias(false), carregarMinhasOcorrencias(false)]);
+    // 2. Remover as fotos existentes selecionadas para exclusão
+    for (const fotoId of fotosRemovidasEdicao) {
+      const respostaFoto = await fetch(
+        `${API_BASE}/occurrences/${Number(id)}/images/${fotoId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (!respostaFoto.ok) {
+        throw new Error('Não foi possível remover uma foto existente.');
+      }
+    }
+
+    // 3. Enviar as novas fotos
+    if (state.pendingPhotos.length > 0) {
+      const formData = new FormData();
+
+      state.pendingPhotos.forEach(foto => {
+        formData.append('files', foto.file);
+      });
+
+      const respostaFoto = await fetch(
+        `${API_BASE}/occurrences/${Number(id)}/images`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        }
+      );
+
+      if (!respostaFoto.ok) {
+        throw new Error('Não foi possível enviar as novas fotos.');
+      }
+    }
+
+    // 4. Limpar os dados temporários e atualizar as telas
+    state.pendingPhotos = [];
+    fotosEdicao = [];
+    fotosRemovidasEdicao = [];
+
+    await Promise.all([
+      carregarOcorrencias(false),
+      carregarMinhasOcorrencias(false)
+    ]);
+
     toast('Ocorrência atualizada com sucesso.');
     go('/ocorrencia/' + Number(id));
+
   } catch (erro) {
-    console.error('Falha ao editar ocorrência:', erro);
-    toast('Falha ao conectar com o servidor.', 'info');
+    console.error('Falha ao editar ocorrência ou atualizar fotos:', erro);
+    toast(erro.message || 'Falha ao conectar com o servidor.', 'info');
+    botaoOcupado(form, false);
   }
+
   return false;
 }
 
@@ -1588,12 +2029,22 @@ function renderView(name = 'home', id, semConfirmacoes){
   }
   document.getElementById('app').innerHTML = html;
   renderHeader();
-    if (name === 'ocorrencias') renderListGrid();   // já chama observarCartoes()
-  else observarCartoes();                          // Home e Minhas
+  if (name === 'ocorrencias') {
+  renderListGrid();
+  carregarConfirmacoesDosCartoes();
+} else {
+  observarCartoes();
+  if (name !== 'ocorrencia') {
+    carregarConfirmacoesDosCartoes();
+  }
+}                          // Home e Minhas
   if (name === 'ocorrencia') {
     if (!semConfirmacoes) carregarConfirmacoes(id);
     carregarFotoDe(Number(id));
   }
+  if (name === 'editar') {
+  carregarFotosEdicao(Number(id));
+}
 
 }
 
