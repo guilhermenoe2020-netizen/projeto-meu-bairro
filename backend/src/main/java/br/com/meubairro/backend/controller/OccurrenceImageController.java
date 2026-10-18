@@ -1,3 +1,4 @@
+
 package br.com.meubairro.backend.controller;
 
 import java.util.List;
@@ -16,13 +17,15 @@ public class OccurrenceImageController {
 
     private final OccurrenceImageService imageService;
 
-    public OccurrenceImageController(OccurrenceImageService imageService) {
+    public OccurrenceImageController(
+            OccurrenceImageService imageService) {
         this.imageService = imageService;
     }
 
     @GetMapping
     public List<OccurrenceImage> findByOccurrence(
             @PathVariable Long occurrenceId) {
+
         return imageService.findByOccurrence(occurrenceId);
     }
 
@@ -31,6 +34,16 @@ public class OccurrenceImageController {
     public List<OccurrenceImage> upload(
             @PathVariable Long occurrenceId,
             @RequestParam("files") List<MultipartFile> files) {
+
         return imageService.upload(occurrenceId, files);
+    }
+
+    @DeleteMapping("/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
+            @PathVariable Long occurrenceId,
+            @PathVariable Long imageId) {
+
+        imageService.delete(occurrenceId, imageId);
     }
 }
