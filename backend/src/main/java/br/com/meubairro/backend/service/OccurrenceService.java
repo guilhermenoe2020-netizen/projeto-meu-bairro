@@ -150,10 +150,15 @@ public class OccurrenceService {
             occurrence.setDataResolucao(
                     request.getDataResolucao());
 
-            User responsavel = getAuthenticatedUser();
+            String responsavel = request.getResponsavelResolucao();
 
-            occurrence.setResponsavel_resolucao(
-                    responsavel.getEmail());
+            if (responsavel == null || responsavel.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Informe o responsável pela resolução");
+            }
+
+            occurrence.setResponsavel_resolucao(responsavel.trim());
 
         } else {
             occurrence.setDataResolucao(null);
@@ -291,25 +296,36 @@ public class OccurrenceService {
         }
     }
 
-    public static class StatusRequest {
 
-        private String status;
-        private LocalDateTime dataResolucao;
+public static class StatusRequest {
 
-        public String getStatus() {
-            return status;
-        }
+    private String status;
+    private LocalDateTime dataResolucao;
+    private String responsavelResolucao;
 
-        public void setStatus(String status) {
-            this.status = status;
-        }
-
-        public LocalDateTime getDataResolucao() {
-            return dataResolucao;
-        }
-
-        public void setDataResolucao(LocalDateTime dataResolucao) {
-            this.dataResolucao = dataResolucao;
-        }
+    public String getStatus() {
+        return status;
     }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getDataResolucao() {
+        return dataResolucao;
+    }
+
+    public void setDataResolucao(LocalDateTime dataResolucao) {
+        this.dataResolucao = dataResolucao;
+    }
+
+    public String getResponsavelResolucao() {
+        return responsavelResolucao;
+    }
+
+    public void setResponsavelResolucao(String responsavelResolucao) {
+        this.responsavelResolucao = responsavelResolucao;
+    }
+}
+
 }
