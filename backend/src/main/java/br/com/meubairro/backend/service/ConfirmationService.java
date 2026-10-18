@@ -59,6 +59,30 @@ public class ConfirmationService {
 
         return confirmationRepository.save(confirmation);
     }
+    
+
+@Transactional
+public void unconfirm(Long occurrenceId) {
+
+    User user = getAuthenticatedUser();
+
+    if (!occurrenceRepository.existsById(occurrenceId)) {
+        throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Ocorrência não encontrada");
+    }
+
+    Confirmation confirmation = confirmationRepository
+            .findByUserIdAndOccurrenceId(
+                    user.getId(),
+                    occurrenceId)
+            .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Você ainda não confirmou esta ocorrência"));
+
+    confirmationRepository.delete(confirmation);
+}
+
 
     @Transactional(readOnly = true)
     public long countByOccurrence(Long occurrenceId) {

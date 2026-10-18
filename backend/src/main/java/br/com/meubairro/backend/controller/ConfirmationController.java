@@ -4,6 +4,7 @@ package br.com.meubairro.backend.controller;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +33,15 @@ public class ConfirmationController {
             @PathVariable Long occurrenceId) {
 
         return confirmationService.confirm(occurrenceId);
+    }
+    
+    // Remover a confirmação do usuário autenticado
+    @DeleteMapping("/{occurrenceId}/confirmations")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unconfirm(
+            @PathVariable Long occurrenceId) {
+
+        confirmationService.unconfirm(occurrenceId);
     }
 
     // Consultar a quantidade de confirmações
