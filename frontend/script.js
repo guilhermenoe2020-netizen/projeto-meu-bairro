@@ -40,12 +40,14 @@ function icon(name, size = 18){
 
 /* ---------- Categorias e constantes ---------- */
 const CATEGORIES = {
-  'Buraco':     { slug: 'buraco',     icon: 'buraco' },
-  'Lixo':       { slug: 'lixo',       icon: 'lixo' },
-  'Iluminação': { slug: 'iluminacao', icon: 'iluminacao' },
-  'Alagamento': { slug: 'alagamento', icon: 'alagamento' },
-  'Outro':      { slug: 'outro',      icon: 'outro' }
+  'Vias e pavimentação': { slug: 'vias', icon: 'buraco' },
+  'Limpeza urbana':      { slug: 'limpeza', icon: 'lixo' },
+  'Iluminação pública':  { slug: 'iluminacao', icon: 'iluminacao' },
+  'Drenagem e alagamentos': { slug: 'drenagem', icon: 'alagamento' },
+  'Água e esgoto':       { slug: 'saneamento', icon: 'alagamento' },
+  'Outros':              { slug: 'outro', icon: 'outro' }
 };
+
 
 const API_BASE = 'https://projeto-meu-bairro.onrender.com/api';
 const BAIRROS = [
@@ -1342,6 +1344,9 @@ async function modalYes(){
     occurrences = occurrences.filter(o => Number(o.id) !== id);
     myOccurrences = myOccurrences.filter(o => Number(o.id) !== id);
     fotosCache.delete(id);
+    fotosCache.delete(Number(id));
+    fotosSemResultado.delete(Number(id));
+
     closeConfirm();
     toast('Ocorrência excluída.');
     await carregarOcorrencias(false);
