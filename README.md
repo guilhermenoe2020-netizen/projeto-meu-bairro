@@ -1,95 +1,112 @@
-# Meu Bairro
+# Meu Bairro — Sistema de Registro de Ocorrências Urbanas
 
-## Acesso e limitações do projeto
+[![NPM](https://img.shields.io/npm/l/react)](https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro/blob/main/LICENSE)
 
-**Site:** https://meu-bairro.netlify.app
+## Sobre o projeto
 
-### Onde o projeto está hospedado
+**[Acessar aplicação online](http://meu-bairro.netlify.app){:target="_blank"}** · **[Ver demonstração](http://meu-bairro-demo.netlify.app){:target="_blank"}**
 
-- **Frontend:** Netlify — onde o site fica disponível para acesso.
-- **Backend:** Render — responsável pela API que atende às requisições do frontend.
-- **Banco de dados:** MySQL hospedado na Aiven — utilizado para armazenar os dados.
+O **Meu Bairro** é uma aplicação full stack web e mobile desenvolvida como projeto acadêmico do curso de Análise e Desenvolvimento de Sistemas, com o objetivo de facilitar o registro e a consulta de problemas urbanos em Manaus.
 
-### Limitações atuais
+A proposta é permitir que os cidadãos registrem ocorrências de seus bairros, relacionadas à infraestrutura urbana, como buracos nas vias públicas, descarte irregular de lixo, problemas na iluminação pública e alagamentos.
 
-O projeto ainda está em desenvolvimento, por isso algumas funcionalidades podem estar incompletas ou apresentar falhas.
+O sistema está sendo desenvolvido com uma arquitetura composta por uma interface web, uma API REST e um banco de dados relacional. A aplicação busca centralizar informações sobre problemas urbanos, facilitar sua consulta e permitir que usuários contribuam confirmando ocorrências já registradas.
 
-- A disponibilidade do site depende também do funcionamento do backend e do banco de dados.
-- O primeiro acesso à API pode demorar quando o serviço hospedado precisa ser iniciado novamente.
-- A integração entre as telas e a API ainda precisa ser testada e aprimorada.
-- Algumas funcionalidades e validações ainda precisam ser implementadas conforme o projeto evoluir.
+## Layout mobile
 
-Se encontrar algum problema ao acessar o site ou utilizar uma funcionalidade, compartilhe o que aconteceu e, se possível, uma captura de tela.
+![Tela inicial](img/tela-inicial.png)
 
-### Próximas melhorias
+![Consulta de ocorrências](img/consulta.png)
 
-Podemos continuar aprimorando as telas, a experiência de uso, a integração entre frontend e backend e a confiabilidade das funcionalidades.
+![Registro de ocorrência](img/registrar-ocorrencia.png)
 
----
+![Detalhes da ocorrência](img/detalhes-ocorrencia.png)
 
-## Como está o projeto
+### Layout web
 
-Até agora, já temos:
+![Tela inicial web](img/tela-inicial(web).png)
 
-- **Frontend:** telas desenvolvidas com HTML, CSS e JavaScript.
-- **Backend:** estrutura inicial da API com Java e Spring Boot.
-- **Banco de dados:** MySQL.
-- **Integração:** início da comunicação entre o frontend e a API.
-- **GitHub:** para guardar o código e acompanhar as mudanças.
-- 
-## Como baixar o projeto
+![Consulta de ocorrências web](img/consulta-ocorrencia(web).png)
 
-Você precisa ter o Git instalado. Depois, abra o terminal na pasta onde deseja guardar o projeto e execute:
+![Registro de ocorrência web](img/registrar-ocorrencia(web).png)
+
+## Modelo relacional
+
+![Modelo relacional do Meu Bairro](img/modelo-relacional.png)
+
+## Tecnologias utilizadas
+
+### Back-end
+
+- Java 25
+- Spring Boot
+- Spring Web
+- JPA / Hibernate
+- Maven
+
+### Front-end
+
+- HTML5
+- CSS3
+- JavaScript
+
+### Implementação em produção
+
+- Back end: Render
+- Front end: Netlify
+- Banco de dados: Mysql
+
+# Como executar o projeto
+
+## Back end
+Pré-requisitos: Java 25
 
 ```bash
+#clonar repositório
 git clone https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro.git
-cd projeto-meu-bairro
+
+# entrar na pasta do projeto back end
+cd projeto-meu-bairro/backend
+
+#excutar o projeto
+./mvnw spring-boot: run
 ```
 
-Pronto! Agora você tem uma cópia do projeto no seu computador.
-
-Para atualizar sua cópia com as mudanças mais recentes, entre na pasta do projeto e execute:
-
+## Front end web
+Pré-requisitos: Visual Studio Code e navegador web.
+ 
 ```bash
-git pull origin main
+#clonar repositório
+git clone https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro.git
+
+# entrar na pasta do projeto front end web
+cd projeto-meu-bairro/frontend
+
+#excutar o projeto
+Abra a pasta front end no Visual Studio Code e execute o arquivo index.html no navegador
 ```
+## Etapas de desenvolvimento
 
-## Como compartilhar suas alterações
+O desenvolvimento do Meu Bairro está organizado em etapas:
 
-Se quiser contribuir, você pode fazer alterações na sua cópia do projeto e compartilhar o resultado.
+1. Levantamento do problema e definição dos requisitos.
+2. Modelagem conceitual e relacional do banco de dados.
+3. Prototipação das telas da aplicação.
+4. Desenvolvimento da API REST.
+5. Integração com o banco de dados.
+6. Integração entre front-end e back-end.
+7. Implementação das funcionalidades de autenticação e confirmação.
+8. Testes, ajustes e documentação.
 
-Para registrar suas mudanças, use:
+## Próximas melhorias
 
-```bash
-git add .
-git commit -m "descreva o que foi alterado"
-git push
-```
-## Como compartilhar suas melhorias
+- **Aprimorar o cadastro e a autenticação:** implementar a verificação de e-mail por link de confirmação, estabelecer requisitos mínimos de segurança para as senhas e adicionar a opção de mostrar ou ocultar a senha.
+- **Recuperação de senha:** implementar o fluxo de recuperação de acesso por e-mail.
+- **Organização e refatoração do código:** revisar a estrutura do projeto, eliminar duplicações e melhorar a legibilidade e a manutenção do código.
+- **Tratamento de exceções no back-end:** aprimorar o tratamento de erros e padronizar as respostas da API.
+- **Correção de falhas no registro de ocorrências:** investigar e corrigir o problema que, após determinado tempo de uso, impede o cadastro de novas ocorrências até que a página seja acessada novamente.
+- Desenvolver testes para os principais fluxos da aplicação.
 
-Se você fez alguma alteração no frontend e quer compartilhar, pode criar um repositório na sua própria conta do GitHub e enviar os arquivos modificados para lá.
+## Agradecimentos
 
-### 1. Crie um repositório
-
-Crie um repositório na sua conta e copie a URL dele.
-
-### 2. Envie os arquivos
-
-Abra o terminal na pasta do projeto que você alterou e execute os comandos abaixo:
-
-```bash
-git init
-git add .
-git commit -m "melhora o frontend"
-git branch -M main
-git remote add origin URL_DO_SEU_REPOSITORIO
-git push -u origin main
-```
-
-Substitua `URL_DO_SEU_REPOSITORIO` pela URL do repositório que você criou.
-
-Se o projeto já estiver usando Git, não precisa executar `git init` novamente.
-
-### 3. Compartilhar
-
-Pronto! Depois que os arquivos forem enviados, copie o link do seu repositório no GitHub e envie no grupo.
+Projeto desenvolvido como parte da formação acadêmica em Análise e Desenvolvimento de Sistemas, com o objetivo de aplicar conhecimentos de desenvolvimento web, programação Java e bancos de dados relacionais.
