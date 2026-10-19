@@ -12,23 +12,50 @@ A proposta é permitir que os cidadãos registrem ocorrências de seus bairros, 
 
 O sistema está sendo desenvolvido com uma arquitetura composta por uma interface web, uma API REST e um banco de dados relacional. A aplicação busca centralizar informações sobre problemas urbanos, facilitar sua consulta e permitir que usuários contribuam confirmando ocorrências já registradas.
 
-## Layout mobile
+### Layout mobile
 
-![Tela inicial](img/tela-inicial.png)
+<table>
+  <tr>
+    <td align="center">
+      <strong>Tela inicial</strong><br>
+      <img src="img/tela-inicial.png" width="220" alt="Tela inicial mobile">
+    </td>
+    <td align="center">
+      <strong>Consulta de ocorrências</strong><br>
+      <img src="img/consulta.png" width="220" alt="Consulta de ocorrências mobile">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Registro de ocorrência</strong><br>
+      <img src="img/registrar-ocorrencia.png" width="220" alt="Registro de ocorrência mobile">
+    </td>
+    <td align="center">
+      <strong>Detalhes da ocorrência</strong><br>
+      <img src="img/detalhes-ocorrencia.png" width="220" alt="Detalhes da ocorrência mobile">
+    </td>
+  </tr>
+</table>
 
-![Consulta de ocorrências](img/consulta.png)
+## Layout web
 
-![Registro de ocorrência](img/registrar-ocorrencia.png)
+<table>
+  <tr>
+    <td align="center">
+      <strong>Tela inicial</strong><br>
+      <img src="img/tela-inicial(web).png" width="400" alt="Tela inicial web">
+    </td>
+    <td align="center">
+      <strong>Consulta de ocorrências</strong><br>
+      <img src="img/consulta-ocorrencia(web).png" width="400" alt="Consulta de ocorrências web">
+    </td>
+  </tr>
+</table>
 
-![Detalhes da ocorrência](img/detalhes-ocorrencia.png)
-
-### Layout web
-
-![Tela inicial web](img/tela-inicial(web).png)
-
-![Consulta de ocorrências web](img/consulta-ocorrencia(web).png)
-
-![Registro de ocorrência web](img/registrar-ocorrencia(web).png)
+<p align="center">
+  <strong>Registro de ocorrência</strong><br>
+  <img src="img/registrar-ocorrencia(web).png" width="600" alt="Registro de ocorrência web">
+</p>
 
 ## Modelo relacional
 
