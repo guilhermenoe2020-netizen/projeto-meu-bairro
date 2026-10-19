@@ -1,6 +1,6 @@
 # Meu Bairro — Sistema de Registro de Ocorrências Urbanas
 
-[![NPM](https://img.shields.io/npm/l/react)](https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/guilhermenoe2020-netizen/projeto-meu-bairro)](https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro/blob/main/LICENSE)
 
 ## Sobre o projeto
 
@@ -50,6 +50,16 @@ O sistema está sendo desenvolvido com uma arquitetura composta por uma interfac
 - CSS3
 - JavaScript
 
+## Conceitos e práticas aplicados
+
+- **Desenvolvimento incremental:** evolução do sistema por etapas, com implementação gradual de funcionalidades.
+- **Desenvolvimento de API REST:** criação de endpoints para consulta e registro de informações.
+- **Persistência de dados:** utilização de JPA/Hibernate para mapear entidades Java e integrá-las ao MySQL.
+- **Modelagem relacional:** definição das entidades e dos relacionamentos do banco de dados.
+- **Integração entre front-end e back-end:** comunicação entre a interface web e a API.
+- **Versionamento de código:** uso de Git e GitHub para acompanhar as alterações do projeto.
+- **Implantação de aplicações:** publicação do front-end e do back-end em ambientes de hospedagem.
+
 ### Implementação em produção
 
 - Back end: Render
@@ -69,22 +79,16 @@ git clone https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro.git
 cd projeto-meu-bairro/backend
 
 #excutar o projeto
-./mvnw spring-boot: run
+./mvnw spring-boot:run
 ```
+## Front-end web
 
-## Front end web
-Pré-requisitos: Visual Studio Code e navegador web.
+**Pré-requisitos:** navegador web e editor de código, como o Visual Studio Code.
+
+1. Clone o repositório.
+2. Abra a pasta do front-end no Visual Studio Code.
+3. Abra o arquivo `index.html` no navegador.
  
-```bash
-#clonar repositório
-git clone https://github.com/guilhermenoe2020-netizen/projeto-meu-bairro.git
-
-# entrar na pasta do projeto front end web
-cd projeto-meu-bairro/frontend
-
-#excutar o projeto
-Abra a pasta front end no Visual Studio Code e execute o arquivo index.html no navegador
-```
 ## Etapas de desenvolvimento
 
 O desenvolvimento do Meu Bairro está organizado em etapas:
