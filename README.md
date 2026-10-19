@@ -42,11 +42,9 @@ O sistema está sendo desenvolvido com uma arquitetura composta por uma interfac
 <table>
   <tr>
     <td align="center">
-      <strong>Tela inicial</strong><br>
       <img src="img/tela-inicial(web).png" width="400" alt="Tela inicial web">
     </td>
     <td align="center">
-      <strong>Consulta de ocorrências</strong><br>
       <img src="img/consulta-ocorrencia(web).png" width="400" alt="Consulta de ocorrências web">
     </td>
   </tr>
