@@ -4,7 +4,7 @@
 
 ## Sobre o projeto
 
-**[Acessar aplicação online](http://meu-bairro.netlify.app){:target="_blank"}** · **[Ver demonstração](http://meu-bairro-demo.netlify.app){:target="_blank"}**
+**[Acessar aplicação online](https://meu-bairro.netlify.app)** · **[Ver demonstração](https://meu-bairro-demo.netlify.app)**
 
 O **Meu Bairro** é uma aplicação full stack web e mobile desenvolvida como projeto acadêmico do curso de Análise e Desenvolvimento de Sistemas, com o objetivo de facilitar o registro e a consulta de problemas urbanos em Manaus.
 
