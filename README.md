@@ -39,21 +39,9 @@ O sistema está sendo desenvolvido com uma arquitetura composta por uma interfac
 
 ## Layout web
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="img/tela-inicial(web).png" width="600" alt="Tela inicial web">
-    </td>
-    <td align="center">
-      <img src="img/consulta-ocorrencia(web).png" width="600" alt="Consulta de ocorrências web">
-    </td>
-  </tr>
-</table>
-
-<p align="center">
-  <strong>Registro de ocorrência</strong><br>
-  <img src="img/registrar-ocorrencia(web).png" width="600" alt="Registro de ocorrência web">
-</p>
+![Tela inicial web](img/tela-inicial(web).png)
+![Consulta de ocorrências web](img/consulta-ocorrencia(web).png)
+![Registro de ocorrência web](img/registrar-ocorrencia(web).png)
 
 ## Modelo relacional
 
