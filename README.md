@@ -121,13 +121,6 @@ O desenvolvimento do Meu Bairro está organizado em etapas:
 
 ## Próximas melhorias
 
-- **Aprimorar o cadastro e a autenticação:** implementar a verificação de e-mail por link de confirmação, estabelecer requisitos mínimos de segurança para as senhas e adicionar a opção de mostrar ou ocultar a senha.
-- **Recuperação de senha:** implementar o fluxo de recuperação de acesso por e-mail.
-- **Organização e refatoração do código:** revisar a estrutura do projeto, eliminar duplicações e melhorar a legibilidade e a manutenção do código.
 - **Tratamento de exceções no back-end:** aprimorar o tratamento de erros e padronizar as respostas da API.
 - **Correção de falhas no registro de ocorrências:** investigar e corrigir o problema que, após determinado tempo de uso, impede o cadastro de novas ocorrências até que a página seja acessada novamente.
 - Desenvolver testes para os principais fluxos da aplicação.
-
-## Agradecimentos
-
-Projeto desenvolvido como parte da formação acadêmica em Análise e Desenvolvimento de Sistemas, com o objetivo de aplicar conhecimentos de desenvolvimento web, programação Java e bancos de dados relacionais.
