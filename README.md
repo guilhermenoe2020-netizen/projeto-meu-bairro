@@ -63,6 +63,10 @@ O sistema está sendo desenvolvido com uma arquitetura composta por uma interfac
 - CSS3
 - JavaScript
 
+### Banco de dados 
+
+- MySQL 
+
 ## Conceitos e práticas aplicados
 
 - **Desenvolvimento incremental:** evolução do sistema por etapas, com implementação gradual de funcionalidades.
@@ -77,7 +81,7 @@ O sistema está sendo desenvolvido com uma arquitetura composta por uma interfac
 
 - Back end: Render
 - Front end: Netlify
-- Banco de dados: Mysql
+- Banco de dados: Aiven
 
 # Como executar o projeto
 
